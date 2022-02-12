@@ -13,6 +13,4 @@ export class Log {
 
     @Column()
     message: number;
-
-    //TODO: Complete
 }

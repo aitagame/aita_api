@@ -18,6 +18,4 @@ export class Currency {
     //Asset name
     @Column()
     code: string;
-
-    //TODO: Complete
 }

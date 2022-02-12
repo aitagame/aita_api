@@ -1,15 +1,25 @@
-import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, JoinColumn, ManyToOne } from "typeorm";
+import { Currency } from "../currencies/currency.model";
+import { User } from "../users/user.model";
 
 @Entity()
-export class Currency {
+export class Address {
     @PrimaryGeneratedColumn()
     id: number;
 
     @Column()
     currency_id: number;
 
+    @ManyToOne(() => Currency)
+    @JoinColumn({ name: 'currency_id' })
+    currency: Currency;
+
     @Column()
     user_id: number;
+
+    @ManyToOne(() => User)
+    @JoinColumn({ name: 'user_id' })
+    user: User;
 
     @Column()
     address_value: string;
@@ -19,6 +29,4 @@ export class Currency {
 
     @Column()
     balance_precision: number;
-    
-    //TODO: Complete
 }

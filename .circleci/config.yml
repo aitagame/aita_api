@@ -75,7 +75,7 @@ workflows:
 
   aita-api-test:
     jobs:
-      - deploy:
+      - test:
           filters:
             branches:
               only: /AITA-\d{1}\d*_[a-zA-Z1-9_-]*/

@@ -1,0 +1,76 @@
+version: 2.1
+executors:
+  node-executor:
+    docker:
+      - image: cimg/node:16.10.0
+      
+jobs:
+  test:
+    executor: node-executor
+    steps:
+      - checkout
+      - run: 
+          name: "Install dependencies"
+          command: |
+            npm i;
+      - save_cache:
+          key: node_modules-{{ checksum "package-lock.json" }}
+          paths: 
+            - node_modules   
+      - run: 
+          name: "Build app"
+          command: |
+            env > .env;
+            npm run build;
+
+  deploy:
+    executor: node-executor
+    steps:
+      - checkout
+      - run:
+          name: "Test target availability"
+          command: |
+            ssh -o StrictHostKeyChecking=no $DEV_SSH_HOST 'echo test';
+      - restore_cache:
+          keys:
+            - node_modules-{{ checksum "package-lock.json" }}
+            - node_modules-
+      - run: 
+          name: "Deploy"
+          command: |
+            zip build_aita_api.zip -r .;
+            chmod +x ./install.sh;
+            scp -o StrictHostKeyChecking=no build_aita_api.zip $DEV_SSH_HOST:build_aita_api.zip;
+            scp -o StrictHostKeyChecking=no install.sh $DEV_SSH_HOST:install_aita_api.sh;
+            ssh -o StrictHostKeyChecking=no $DEV_SSH_HOST './install_aita_api.sh';
+
+
+workflows:
+  aita-api-deploy-dev:
+    jobs:
+      - test:
+          filters:
+            branches:
+              only: develop
+      - deploy:
+          filters:
+            branches:
+              only: develop
+
+  aita-api-deploy-prod:
+    jobs:
+      - test:
+          filters:
+            branches:
+              only: master
+      - deploy:
+          filters:
+            branches:
+              only: master
+
+  aita-api-test:
+    jobs:
+      - deploy:
+          filters:
+            branches:
+              only: /AITA-\d{1}\d*(:|) .*/

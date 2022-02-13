@@ -25,12 +25,15 @@ jobs:
 
   deploy:
     executor: node-executor
+    parameters:
+      target_host:
+        type: string
     steps:
       - checkout
       - run:
           name: "Test target availability"
           command: |
-            ssh -o StrictHostKeyChecking=no $DEV_SSH_HOST 'echo test';
+            ssh -o StrictHostKeyChecking=no << parameters.target_host >> 'echo test';
       - restore_cache:
           keys:
             - node_modules-{{ checksum "package-lock.json" }}
@@ -40,9 +43,9 @@ jobs:
           command: |
             zip build_aita_api.zip -r .;
             chmod +x ./install.sh;
-            scp -o StrictHostKeyChecking=no build_aita_api.zip $DEV_SSH_HOST:build_aita_api.zip;
-            scp -o StrictHostKeyChecking=no install.sh $DEV_SSH_HOST:install_aita_api.sh;
-            ssh -o StrictHostKeyChecking=no $DEV_SSH_HOST './install_aita_api.sh';
+            scp -o StrictHostKeyChecking=no build_aita_api.zip << parameters.target_host >>:build_aita_api.zip;
+            scp -o StrictHostKeyChecking=no install.sh << parameters.target_host >>:install_aita_api.sh;
+            ssh -o StrictHostKeyChecking=no << parameters.target_host >> './install_aita_api.sh';
 
 
 workflows:
@@ -53,6 +56,7 @@ workflows:
             branches:
               only: develop
       - deploy:
+          target_host: $DEV_SSH_HOST
           filters:
             branches:
               only: develop
@@ -64,6 +68,7 @@ workflows:
             branches:
               only: master
       - deploy:
+          target_host: $PROD_SSH_HOST
           filters:
             branches:
               only: master
@@ -73,4 +78,4 @@ workflows:
       - deploy:
           filters:
             branches:
-              only: /AITA-\d{1}\d*_{a-zA-Z1-9_-}*
+              only: /AITA-\d{1}\d*_[a-zA-Z1-9_-]*/

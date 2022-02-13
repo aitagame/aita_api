@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from "typeorm";
+import { createHash } from "crypto";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, BeforeInsert } from "typeorm";
 import { Clan } from "../clans/clan.model";
 
 @Entity()
@@ -33,4 +34,12 @@ export class User {
 
     @DeleteDateColumn()
     deleted_at: Date;
+
+    @BeforeInsert()
+    async hashPassword() {
+        this.passwordHash = createHash('sha256')
+            .update(`${this.passwordHash}${process.env['PASSWORD_HASH_SALT']}`)
+            .digest()
+            .toString('hex');
+    }
 }

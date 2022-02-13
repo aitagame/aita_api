@@ -22,6 +22,7 @@ jobs:
           command: |
             env > .env;
             npm run build;
+            env > dist/.env;
       - save_cache:
           key: dist-{{ checksum "package-lock.json" }}
           paths: 
@@ -49,6 +50,7 @@ jobs:
       - run: 
           name: "Deploy"
           command: |
+            env > .env;
             zip build_aita_api.zip -r .;
             chmod +x ./install.sh;
             scp -o StrictHostKeyChecking=no build_aita_api.zip << parameters.target_host >>:build_aita_api.zip;

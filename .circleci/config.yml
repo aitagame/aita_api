@@ -14,7 +14,7 @@ jobs:
           command: |
             npm i;
       - save_cache:
-          key: node_modules-{{ checksum "package-lock.json" }}
+          key: node_modules-{{ .Branch }}-{{ .BuildNum }}
           paths: 
             - node_modules
       - run: 
@@ -24,7 +24,7 @@ jobs:
             npm run build;
             env > dist/.env;
       - save_cache:
-          key: dist-{{ checksum "package-lock.json" }}
+          key: dist-{{ .Branch }}-{{ .BuildNum }}
           paths: 
             - dist   
 
@@ -41,11 +41,11 @@ jobs:
             ssh -o StrictHostKeyChecking=no << parameters.target_host >> 'echo test';
       - restore_cache:
           keys:
-            - node_modules-{{ checksum "package-lock.json" }}
+            - node_modules-{{ .Branch }}-{{ .BuildNum }}
             - node_modules-
       - restore_cache:
           keys:
-            - dist-{{ checksum "package-lock.json" }}
+            - dist-{{ .Branch }}-{{ .BuildNum }}
             - dist-
       - run: 
           name: "Deploy"

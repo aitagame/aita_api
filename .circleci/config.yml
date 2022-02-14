@@ -16,12 +16,17 @@ jobs:
       - save_cache:
           key: node_modules-{{ checksum "package-lock.json" }}
           paths: 
-            - node_modules   
+            - node_modules
       - run: 
           name: "Build app"
           command: |
             env > .env;
             npm run build;
+            env > dist/.env;
+      - save_cache:
+          key: dist-{{ checksum "package-lock.json" }}
+          paths: 
+            - dist   
 
   deploy:
     executor: node-executor
@@ -38,9 +43,14 @@ jobs:
           keys:
             - node_modules-{{ checksum "package-lock.json" }}
             - node_modules-
+      - restore_cache:
+          keys:
+            - dist-{{ checksum "package-lock.json" }}
+            - dist-
       - run: 
           name: "Deploy"
           command: |
+            env > .env;
             zip build_aita_api.zip -r .;
             chmod +x ./install.sh;
             scp -o StrictHostKeyChecking=no build_aita_api.zip << parameters.target_host >>:build_aita_api.zip;

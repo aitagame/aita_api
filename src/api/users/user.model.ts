@@ -34,12 +34,4 @@ export class User {
 
     @DeleteDateColumn()
     deleted_at: Date;
-
-    @BeforeInsert()
-    async hashPassword() {
-        this.passwordHash = createHash('sha256')
-            .update(`${this.passwordHash}${process.env['PASSWORD_HASH_SALT']}`)
-            .digest()
-            .toString('hex');
-    }
 }

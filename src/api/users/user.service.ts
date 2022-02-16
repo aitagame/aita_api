@@ -69,6 +69,14 @@ export class UserService {
             .toString('hex');
     }
 
+    findById(id: number, options?): Promise<User> {
+        return this.userRepository.findOne(id, options);
+    }
+
+    findByParams(params: object): Promise<User> {
+        return this.userRepository.findOne(params);
+    }
+
     public generateJwt(user: User): string {
         return sign({
             id: user.id,

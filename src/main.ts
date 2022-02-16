@@ -10,6 +10,7 @@ async function bootstrap() {
     .setDescription('AITA API doc')
     .setVersion('0.1')
     .addTag('aitagame')
+    .addTag('users')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

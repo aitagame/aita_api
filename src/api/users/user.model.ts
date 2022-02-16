@@ -7,7 +7,7 @@ export class User {
     @PrimaryGeneratedColumn()
     id: number;
 
-    @Column()
+    @Column({ nullable: true })
     clan_id: number;
 
     @ManyToOne(() => Clan)
@@ -23,8 +23,8 @@ export class User {
     @Column()
     email: string;
 
-    @Column()
-    passwordHash: string;
+    @Column({ select: false })
+    password: string;
 
     @CreateDateColumn()
     created_at: Date;

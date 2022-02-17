@@ -16,6 +16,9 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('/', app, document);
 
+  if(!process.env['JWT_SECRET'])
+    throw new Error('Shit happened, cannot find jwt secret in environment');
+    
   await app.listen(process.env['AITA_API_PORT'], 'localhost');
 }
 bootstrap();

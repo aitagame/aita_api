@@ -27,8 +27,10 @@ export class UserService {
 
         const createUser = new User();
         Object.assign(createUser, createUserDto);
-
-        return await this.userRepository.save(createUser);
+        await this.userRepository.save(createUser);
+        delete createUser.password;
+        
+        return createUser;
     }
 
     async loginUser(loginUserDto: LoginUserDto): Promise<User> {

@@ -25,7 +25,7 @@ export class UserContoller{
     async createUser(@Body() createUserDto: CreateUserDto, @Res() response: Response): Promise<Response> { 
         const user = await this.userService.createUser(createUserDto);
         response.set({ 'authorization':  this.userService.generateJwt(user)});
-        return response.status(201).json({ message: "User create" });
+        return response.status(201).json({ userData: user  });
     }
 
     @Post('authorization')
@@ -39,7 +39,7 @@ export class UserContoller{
     async loginUser(@Body() loginUserDto: LoginUserDto, @Res() response: Response): Promise<Response> {
         const user = await this.userService.loginUser(loginUserDto);
         response.set({ 'authorization':  this.userService.generateJwt(user)});
-        return response.status(201).json({ message: "User authorized" });
+        return response.status(201).json({ userData: user });
     }
 
     @Get('get')

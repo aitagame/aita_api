@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Post, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
+import { Body, Controller, Get, Post, Res, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
 import { ApiBody, ApiHeader, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Response } from "express";
 import { UserDecorator } from "./decorators/user.decorator";
 import { CreateUserDto } from "./dto/createUser.dto";
 import { LoginUserDto } from "./dto/loginUser.dto";
@@ -21,9 +22,10 @@ export class UserContoller{
     @ApiResponse({ status: 400, description: 'Validation failed'})
     @ApiResponse({ status: 422, description: 'Email are taken'})
     @UsePipes(new ValidationPipe())
-    async createUser(@Body() createUserDto: CreateUserDto): Promise<UserResponseInterface> { 
+    async createUser(@Body() createUserDto: CreateUserDto, @Res() response: Response): Promise<Response> { 
         const user = await this.userService.createUser(createUserDto);
-        return this.userService.buildUserResponse(user);
+        response.set({ 'authorization':  this.userService.generateJwt(user)});
+        return response.status(201).json({ message: "User create" });
     }
 
     @Post('authorization')
@@ -34,9 +36,10 @@ export class UserContoller{
     @ApiResponse({ status: 400, description: 'Invalid password'})
     @ApiResponse({ status: 404, description: 'User not found'})
     @UsePipes(new ValidationPipe())
-    async loginUser(@Body() loginUserDto: LoginUserDto): Promise<UserResponseInterface> {
+    async loginUser(@Body() loginUserDto: LoginUserDto, @Res() response: Response): Promise<Response> {
         const user = await this.userService.loginUser(loginUserDto);
-        return this.userService.buildUserResponse(user);
+        response.set({ 'authorization':  this.userService.generateJwt(user)});
+        return response.status(201).json({ message: "User login" });
     }
 
     @Get('get')

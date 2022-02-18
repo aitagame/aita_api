@@ -39,7 +39,7 @@ export class UserContoller{
     async loginUser(@Body() loginUserDto: LoginUserDto, @Res() response: Response): Promise<Response> {
         const user = await this.userService.loginUser(loginUserDto);
         response.set({ 'authorization':  this.userService.generateJwt(user)});
-        return response.status(201).json({ message: "User login" });
+        return response.status(201).json({ message: "User authorized" });
     }
 
     @Get('get')

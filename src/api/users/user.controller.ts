@@ -31,7 +31,7 @@ export class UserContoller{
     @Post('authorization')
     @ApiBody({ type: LoginUserDto })
     @ApiTags('users')
-    @ApiResponse({ status: 201, description: 'User authorized'})
+    @ApiResponse({ status: 200, description: 'User authorized'})
     @ApiResponse({ status: 400, description: 'Validation failed'})
     @ApiResponse({ status: 400, description: 'Invalid password'})
     @ApiResponse({ status: 404, description: 'User not found'})
@@ -39,7 +39,7 @@ export class UserContoller{
     async loginUser(@Body() loginUserDto: LoginUserDto, @Res() response: Response): Promise<Response> {
         const user = await this.userService.loginUser(loginUserDto);
         response.set({ 'authorization':  this.userService.generateJwt(user)});
-        return response.status(201).json({ userData: user });
+        return response.status(200).json({ userData: user });
     }
 
     @Get('get')

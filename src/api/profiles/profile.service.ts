@@ -18,7 +18,7 @@ export class ProfileService {
     private readonly profileRepository: Repository<Profile>
   ) { }
 
-  async createProfile(profileData: ProfileDto, user: User): Promise<ProfileDto> {
+  async createProfile(profileData: ProfileDto, user: User): Promise<Profile> {
     this.assertProfileDataValid(profileData);
     const currentProfile = await this.profileRepository.findOne({ user_id: user.id });
 
@@ -29,23 +29,23 @@ export class ProfileService {
       class: profileData.class
     }));
 
-    return { ...profile, rating: null };
+    return profile;
   }
 
-  async updateProfile(id: number | string, profileData: ProfileDto, user: User): Promise<ProfileDto> {
+  async updateProfile(id: number | string, profileData: ProfileDto, user: User): Promise<Profile> {
     this.assertProfileDataValid(profileData, false, false);
 
     const profile = await this.getProfile(id, user);
-    assert(profile.user.id === user.id, new HttpException("Access denied to update specified profile", HttpStatus.FORBIDDEN));
+    assert(profile.user_id === user.id, new HttpException("Access denied to update specified profile", HttpStatus.FORBIDDEN));
 
     delete profileData.id;
     clearDto(profileData);
 
     await this.profileRepository.update(id, profileData);
-    return { ...profile, rating: null };
+    return profile
   }
 
-  async listProfiles({ limit, direction }: ListCriteriaDto): Promise<Collection<ProfileDto>> {
+  async listProfiles({ limit, direction }: ListCriteriaDto): Promise<[Array<Profile>, number]> {
     assert(limit < MAX_LIMIT, new HttpException(`Limit should not exceed ${MAX_LIMIT}`, HttpStatus.BAD_REQUEST));
     assert(SORT_DIRECTIONS.includes(direction), new HttpException(`Direction should be one of ${SORT_DIRECTIONS.join()}`, HttpStatus.BAD_REQUEST));
 
@@ -53,10 +53,10 @@ export class ProfileService {
       .createQueryBuilder()
       .orderBy("gamesWon", "DESC")
       .limit()
-      .execute();
+      .getManyAndCount();
   }
 
-  async getProfile(id: number | string, user: User) {
+  async getProfile(id: number | string, user: User): Promise<Profile> {
     let profile: Profile = null;
 
     if (id === "current") {

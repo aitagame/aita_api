@@ -4,4 +4,5 @@ export default class ProfileDto {
   //TODO: Consider replacing with ENUM
   class: string;
   rating: number;
+  is_my: boolean;
 }

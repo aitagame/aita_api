@@ -38,6 +38,8 @@ jobs:
     parameters:
       target_host:
         type: string
+      branch:
+        type: string
     steps:
       - checkout
       - run:

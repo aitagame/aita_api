@@ -16,7 +16,7 @@ jobs:
       - run:
           name: "Check test coverage & test"
           command: |
-            npm run test:cov;
+            npm run test:cov --passWithNoTests;
             npm run test;
       - save_cache:
           key: node_modules-{{ .Branch }}-{{ .BuildNum }}

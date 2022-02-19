@@ -13,6 +13,11 @@ jobs:
           name: "Install dependencies"
           command: |
             npm i;
+      - run:
+          name: "Check test coverage & test"
+          command: |
+            npm run test:cov;
+            npm run test;
       - save_cache:
           key: node_modules-{{ .Branch }}-{{ .BuildNum }}
           paths: 
@@ -55,7 +60,7 @@ jobs:
             chmod +x ./install.sh;
             scp -o StrictHostKeyChecking=no build_aita_api.zip << parameters.target_host >>:build_aita_api.zip;
             scp -o StrictHostKeyChecking=no install.sh << parameters.target_host >>:install_aita_api.sh;
-            ssh -o StrictHostKeyChecking=no << parameters.target_host >> './install_aita_api.sh';
+            ssh -o StrictHostKeyChecking=no << parameters.target_host >> 'BRANCH={{ .Branch }} ./install_aita_api.sh';
 
 
 workflows:

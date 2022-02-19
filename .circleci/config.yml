@@ -75,6 +75,8 @@ workflows:
       - deploy:
           target_host: $DEV_SSH_HOST
           branch: develop
+          requires:
+            - test
           filters:
             branches:
               only: develop
@@ -87,7 +89,9 @@ workflows:
               only: master
       - deploy:
           target_host: $PROD_SSH_HOST
-          branch: develop
+          branch: master
+          requires:
+            - test
           filters:
             branches:
               only: master

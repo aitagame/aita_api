@@ -1,25 +1,27 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsInt, IsNumber, IsPositive } from "class-validator";
+import ProfileDto from "src/api/profiles/dto/profile.dto";
+import { GameMode } from "../roomModes.enum";
 import { RoomEssentialDto } from "./roomEssential.dto";
 
 
 export class RoomDto extends RoomEssentialDto {
     @ApiProperty()
-    //TODO: Should represent ProfileDto based on ProfileModel
-    players: Array<any>;
+    players: Array<ProfileDto>;
 
     @ApiProperty()
     passwordHash: Array<any>;
 
-    //TODO: Replace with ENUM
-    readonly gameMode: string;
+    @ApiProperty()
+    readonly gameMode: GameMode;
 
-    //TODO: Replace with map model
+    @ApiProperty()
     readonly map: string;
 
+    @ApiProperty()
     //Current player's bet
     readonly bet: number;
 
+    @ApiProperty()
     //Total bet for distribution
     readonly betTotal: number;
 }

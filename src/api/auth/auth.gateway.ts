@@ -1,10 +1,14 @@
+import { UseGuards } from "@nestjs/common";
 import {
     SubscribeMessage,
-    MessageBody,
     WsResponse,
-    WebSocketGateway
+    WebSocketGateway,
+    ConnectedSocket,
+    WsException
 } from "@nestjs/websockets";
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
+import { isUserAuthorized } from "../users/guards/utils";
+import { WsGuard } from "../users/guards/ws.gurard";
 
 @WebSocketGateway({
     cors: {
@@ -16,9 +20,20 @@ export class AuthEventsGateway {
     server: Server;
 
     @SubscribeMessage("verifyAuthorized")
-    verifyAuthorized(@MessageBody() data: any): WsResponse<String> {
-        //TODO: Verify token & then return authorization state
-        return { event: "verifyAuthorized", data: "ok" };
+    verifyAuthorized(@ConnectedSocket() socket: Socket): WsResponse<boolean> {
+        if (process.env['NODE_ENV'] === 'production') {
+            throw new WsException('Not available for production environment');
+        }
+        return { event: "verifyAuthorized", data: isUserAuthorized(socket) };
+    }
+
+    @SubscribeMessage("authorize")
+    @UseGuards(WsGuard)
+    authorize(@ConnectedSocket() socket: Socket): WsResponse<boolean> {
+        if (process.env['NODE_ENV'] === 'production') {
+            throw new WsException('Not available for production environment');
+        }
+        return { event: "authorize", data: true }
     }
 
 }

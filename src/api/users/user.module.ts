@@ -9,7 +9,7 @@ import { UserService } from "./user.service";
     controllers: [UserContoller],
     providers: [UserService],
     imports: [TypeOrmModule.forFeature([User])],
-    exports: [],
+    exports: [UserService],
 })
 export class UserModule {
     configure(consumer: MiddlewareConsumer) {

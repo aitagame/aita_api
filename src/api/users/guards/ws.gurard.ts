@@ -22,6 +22,7 @@ export class WsGuard implements CanActivate {
             return true;
         }
 
-        throw new WsException('Not authorized');
+        client.emit('error', new HttpException('Unauthorized', 401));
+        client.disconnect();
     }
 }

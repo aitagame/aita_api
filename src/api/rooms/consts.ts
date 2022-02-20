@@ -31,6 +31,9 @@ export const ROOMS_TYPES = [
 ]
 //#endregion
 
+export const PROFILE_PREFIX = 'p';
+export const ROOM_PREFIX = 'r';
+
 export const ROOM_NAME_REGEX = /[A-Za-z0-9А-Яа-я\ \_\:\№\"\?\!\-\+\=\*\/\#\@\^\,\.\(\)\[\]\{\}\<\>\$\%\;\&]*/;
 export const MIN_ROOM_NAME_LENGTH = 0;
 export const MAX_ROOM_NAME_LENGTH = 20;

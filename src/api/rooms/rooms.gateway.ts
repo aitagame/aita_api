@@ -1,19 +1,19 @@
-import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsResponse } from "@nestjs/websockets";
+import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsResponse, WsException } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { createHash } from "crypto";
 import { RoomEssentialDto } from "./dto/roomEssential.dto";
 import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX } from "./consts";
 import { RoomDto } from "./dto/room.dto";
 import { WsGuard } from "../users/guards/ws.gurard";
-import { ConflictException, Controller, UseGuards } from "@nestjs/common";
+import { HttpStatus, UseGuards } from "@nestjs/common";
 import { RedisService } from "src/storage/redis/redis.service";
-import { UserModule } from "../users/user.module";
-import { UserService } from "../users/user.service";
 import { User } from "../users/user.model";
 import { Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
+import { Profile } from "../profiles/profile.model";
+import { getAuthorizedUser } from "../users/guards/utils";
 
-
+//TODO: Reimplement with profiles and DTOs
 @WebSocketGateway({
     cors: {
         origin: "*"
@@ -23,15 +23,19 @@ import { InjectRepository } from "@nestjs/typeorm";
 export class RoomsEventsGateway {
     server: Server;
     private users: Map<number, User>;
+    private profiles: Map<number, Profile>;
 
     constructor(
         private redisService: RedisService,
         @InjectRepository(User)
-        private userRepository: Repository<User>
+        private userRepository: Repository<User>,
+        @InjectRepository(Profile)
+        private profileRepository: Repository<Profile>
     ) { }
 
     @SubscribeMessage(ROOMS_LIST)
     async list(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<Array<RoomEssentialDto>>> {
+        const { query } = data;
         const roomsKeys = await this.redisService.keys('room[0-9]*');
 
         let roomsList = await Promise.all(roomsKeys.map(async (roomKey) => {
@@ -67,7 +71,7 @@ export class RoomsEventsGateway {
 
     @SubscribeMessage(ROOMS_GET)
     async get(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
-        const user = await this.getUser(socket.handshake.auth.user.id);
+        const user = await this.getUser(getAuthorizedUser(socket).id);
         let roomId = user.roomId;
         let roomKey = `room${roomId}`;
         let passHash = await this.redisService.hGet(roomKey, 'password');
@@ -96,20 +100,20 @@ export class RoomsEventsGateway {
 
     @SubscribeMessage(ROOMS_GET_ID)
     async getRoomId(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<number>> {
-        const roomId = parseInt(await this.redisService.get(`usr${socket.handshake.auth.user.id}RoomId`));
+        const roomId = parseInt(await this.redisService.get(`usr${getAuthorizedUser(socket).id}RoomId`));
 
         return { event: ROOMS_GET_ID, data: isNaN(roomId) ? null : roomId };
     }
 
     @SubscribeMessage(ROOMS_JOIN)
     async join(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
-        const user = await this.getUser(socket.handshake.auth.user.id);
+        const user = await this.getUser(getAuthorizedUser(socket).id);
         if (!user.roomId) {
             const roomId = data.roomId.split('room').pop();
 
             let roomState = await this.redisService.hGet(`room${roomId}`, `state`);
             if (!roomState) {
-                socket.emit('clientError', 'Room is not exist.');
+                throw new WsException({ status: HttpStatus.NOT_FOUND, message: 'Room does not exist.' });
             }
             else if (roomState == ROOMS_STATE_LOBBY) {
                 let passHash = await this.redisService.hGet(`room${roomId}`, 'password');
@@ -138,15 +142,15 @@ export class RoomsEventsGateway {
                     }
                 }
                 else {
-                    socket.emit('clientError', 'Unauthorized', `room${roomId}`);
+                    throw new WsException({ status: HttpStatus.UNAUTHORIZED, message: `room${roomId}` });
                 }
             }
             else {
-                socket.emit('clientError', 'Room state is not lobby.');
+                throw new WsException({ status: HttpStatus.UNPROCESSABLE_ENTITY, message: 'Room state is not lobby.' });
             }
         }
         else {
-            socket.emit('clientError', `You're already in room room${user.roomId}`);
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `You're already in room room${user.roomId}` });
         }
         return { event: ROOMS_JOIN, data: null };
     }
@@ -154,7 +158,7 @@ export class RoomsEventsGateway {
     @SubscribeMessage(ROOMS_LEAVE)
     //Consider returning list?
     async leave(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomEssentialDto>> {
-        const user = await this.getUser(socket.handshake.auth.user.id);
+        const user = await this.getUser(getAuthorizedUser(socket).id);
 
         if (user.roomId) {
             console.log(`leaving room${user.roomId} usr${user.id}`);
@@ -175,41 +179,36 @@ export class RoomsEventsGateway {
             user.roomId = null;
         }
         else {
-            socket.emit('clientError', 'No roomId assigned to user');
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: 'No roomId assigned to user' })
         }
         return { event: ROOMS_LEAVE, data: null };
     }
 
     @SubscribeMessage(ROOMS_CREATE)
     async create(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomEssentialDto>> {
-        const user = await this.getUser(socket.handshake.auth.user.id);
+        const user = await this.getUser(getAuthorizedUser(socket).id);
         let { name, mapId, usersCount, mode, password } = data;
         if (!password || password == '') {
             password = null;
         }
         if (password && password.length > MAX_PASSWORD_LENGTH) {
-            socket.emit('clientError', `Password length should be < ${MAX_PASSWORD_LENGTH}`);
-            return null;
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Password length should be < ${MAX_PASSWORD_LENGTH}` });
         }
         if (!mode) {
             mode = ROOMS_MODE_DEATHMATCH;
         }
         if (!ROOMS_TYPES.includes(mode)) {
-            socket.emit('clientError', `Invalid room mode ${mode}`);
-            return null;
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Invalid room mode ${mode}` });
         }
         if (!name) {
-            socket.emit('clientError', `Room name cannot be undefined`);
-            return null;
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name cannot be undefined` });
         }
         name = name.trim();
         if (!(name.length > MIN_ROOM_NAME_LENGTH && name.length <= MAX_ROOM_NAME_LENGTH)) {
-            socket.emit('clientError', `Room name length out of range (${MIN_ROOM_NAME_LENGTH} - ${MAX_ROOM_NAME_LENGTH})`);
-            return null;
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name length out of range (${MIN_ROOM_NAME_LENGTH} - ${MAX_ROOM_NAME_LENGTH})` });
         }
         if (!name.match(ROOM_NAME_REGEX)) {
-            socket.emit('clientError', `Room name may contain only space and specified symbols: A-Za-z0-9А-Яа-я_:№"?!-+=*/#@^,.()[]{}<>$%;&`);
-            return null;
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name may contain only space and specified symbols: A-Za-z0-9А-Яа-я_:№"?!-+=*/#@^,.()[]{}<>$%;&` });
         }
 
         if (!user.roomId) {
@@ -252,22 +251,25 @@ export class RoomsEventsGateway {
                 socket.join(`/room${user.roomId}`);
             }
             else {
-                socket.emit('clientError', `mode should be one of ${[
-                    ROOMS_MODE_DEATHMATCH,
-                    ROOMS_MODE_TEAM,
-                    ROOMS_MODE_CTF,
-                    ROOMS_MODE_CTP
-                ].join(', ')}`)
+                throw new WsException({
+                    status: HttpStatus.BAD_REQUEST,
+                    message: `mode should be one of ${[
+                        ROOMS_MODE_DEATHMATCH,
+                        ROOMS_MODE_TEAM,
+                        ROOMS_MODE_CTF,
+                        ROOMS_MODE_CTP
+                    ].join(', ')}`
+                });
             }
         }
         else {
-            socket.emit('clientError', `You're already in room room${user.roomId}`);
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `You're already in room room${user.roomId}` });
         }
         return { event: ROOMS_CREATE, data: null };
     }
 
 
-    async getUser(id) {
+    async getUser(id: number) {
         let user = this.users.get(id);
         if (user) {
             return user;

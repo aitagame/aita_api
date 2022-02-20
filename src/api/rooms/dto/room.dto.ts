@@ -1,6 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
 import ProfileDto from "src/api/profiles/dto/profile.dto";
-import { GameMode } from "../roomModes.enum";
 import { RoomEssentialDto } from "./roomEssential.dto";
 
 
@@ -12,7 +11,7 @@ export class RoomDto extends RoomEssentialDto {
     passwordHash: Array<any>;
 
     @ApiProperty()
-    readonly gameMode: GameMode;
+    readonly gameMode: string;
 
     @ApiProperty()
     readonly map: string;

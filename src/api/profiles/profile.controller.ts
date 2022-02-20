@@ -1,14 +1,18 @@
-import { Body, Controller, Get, HttpException, HttpStatus, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
-import { ApiBody, ApiResponse, ApiTags, ApiParam, ApiSecurity, ApiQuery } from "@nestjs/swagger";
+import { Body, Controller, Get, HttpStatus, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { ApiBody, ApiResponse, ApiTags, ApiParam, ApiSecurity, ApiQuery, ApiExtraModels } from "@nestjs/swagger";
 import { isNumber } from "class-validator";
 import { DEFAULT_LIMIT } from "src/common/consts";
 import { ListCriteriaDto } from "src/common/dto/listCriteria.dto";
+import { ListResponseDto } from "src/common/dto/listResponse.dto";
+import { listDtoToSchema } from "src/common/utils";
 import { UserDecorator } from "../users/decorators/user.decorator";
 import { AuthGuard } from "../users/guards/auth.guard";
 import { User } from "../users/user.model";
 import ProfileDto from "./dto/profile.dto";
 import { Profile } from "./profile.model";
 import { ProfileService } from "./profile.service";
+
+// class ProfileListDto extends ListResponseDto<ProfileDto> {}; 
 
 @Controller("profiles")
 @ApiSecurity("Authorization")
@@ -46,9 +50,10 @@ export class ProfilesController {
   @ApiQuery({ name: "limit", type: "number", "example": DEFAULT_LIMIT })
   @ApiQuery({ name: "direction", type: "string", "example": "DESC" })
   @ApiTags("profiles")
-  @ApiResponse({ type: ProfileDto, status: HttpStatus.OK, description: "Profile list built" })
+  @ApiResponse({ schema: listDtoToSchema(ListResponseDto, ProfileDto), status: HttpStatus.OK, description: "Profile list built" })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: "Invalid criteria" })
   @UseGuards(AuthGuard)
+  @ApiExtraModels(ListCriteriaDto, ListResponseDto, ProfileDto)
   async listProfiles(@Query() criteria: ListCriteriaDto, @UserDecorator() user: User): Promise<ListResponseDto<ProfileDto>> {
     const [profilesData, count] = await this.profileService.listProfiles(criteria);
     return { data: this.buildProfileDtoList(profilesData, user), count };

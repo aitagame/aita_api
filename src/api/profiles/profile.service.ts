@@ -4,12 +4,11 @@ import * as assert from "assert";
 import { MAX_LIMIT, SORT_DIRECTIONS } from "src/common/consts";
 import { ListCriteriaDto } from "src/common/dto/listCriteria.dto";
 import { clearDto } from "src/common/utils";
-import { Collection, Repository } from "typeorm";
+import { Repository } from "typeorm";
 import { User } from "../users/user.model";
+import { PROFILE_CLASSES } from "./consts";
 import ProfileDto from "./dto/profile.dto";
 import { Profile } from "./profile.model";
-
-const PROFILE_CLASSES = ["air", "inferno", "terrestrial", "aqua"];
 
 @Injectable()
 export class ProfileService {

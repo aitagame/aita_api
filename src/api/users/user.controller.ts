@@ -65,7 +65,7 @@ export class UserContoller {
 
         let user = null;
         if(!key) {
-            await this.authService.registerKeyValue(getUserByAccessKeyDto.accessKey);
+            await this.authService.registerKeyValue(getUserByAccessKeyDto);
             user = await this.userService.createUserWithKey(getUserByAccessKeyDto);
             await this.authService.createKeyWithUser(user.id, getUserByAccessKeyDto.accessKey)
         } else {

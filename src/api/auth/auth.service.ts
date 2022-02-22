@@ -1,8 +1,9 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AccessKey } from './accessKey.model';
 import * as nearAPI from 'near-api-js';
+import { AccessKey } from './accessKey.model';
+import { GetUserByAccessKeyDto } from '../users/dto/getUserByAccessKey.dto';
 
 @Injectable()
 export class AuthService {
@@ -22,14 +23,14 @@ export class AuthService {
     }
   }
 
-  async registerKeyValue(accessKey: string): Promise<void> {
+  async registerKeyValue(keyPairDto: GetUserByAccessKeyDto): Promise<void> {
     try {
       const { keyStores, KeyPair } = nearAPI;
       const keyStore = new keyStores.InMemoryKeyStore();
-      const PRIVATE_KEY = accessKey;
-      const keyPair = KeyPair.fromString(PRIVATE_KEY);
 
-      await keyStore.setKey("testnet", "aitatest13.testnet", keyPair);
+      const keyPair = KeyPair.fromString(keyPairDto.accessKey);
+
+      await keyStore.setKey(process.env['NETWORK_ID'] || 'testnet', keyPairDto.accountId, keyPair);
     } catch (err) {
       throw new HttpException(err.message, HttpStatus.UNAUTHORIZED);
     }

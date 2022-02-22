@@ -2,7 +2,7 @@ import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsRes
 import { Server, Socket } from "socket.io";
 import { createHash } from "crypto";
 import { RoomEssentialDto } from "./dto/roomEssential.dto";
-import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX, ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX } from "./consts";
+import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX, ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX, ROOMS_STATE_UNEXIST } from "./consts";
 import { RoomDto } from "./dto/room.dto";
 import { WsGuard } from "../users/guards/ws.gurard";
 import { HttpStatus, UseGuards } from "@nestjs/common";
@@ -92,24 +92,7 @@ export class RoomsEventsGateway {
         const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
         const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
 
-        let result: RoomDto = {
-            id: roomId,
-            name: roomData.name,
-            gameMode: roomData.gameMode,
-            mapId: roomData.mapId,
-            icon: null,//roomData.icon
-            isLocked: !!roomData.password,
-            state: roomData.state,
-            passwordHash: null,
-            playersCount,
-            volume: parseInt(roomData.volume),
-            players: [],
-        }
-
-        const profileIds = await this.redisService.lRange(`${ROOM_PROFILE_PREFIX}${roomKey}`, 0, playersCount);
-        for (let profileId of profileIds) {
-            result.players.push(this.buildProfileDto(await this.getProfileById(parseInt(profileId)), user));
-        }
+        let result: RoomDto = await this.roomDataToDto(roomId, roomData, playersCount, roomKey, user);
 
         return { event: ROOMS_GET, data: result };
     }
@@ -140,10 +123,10 @@ export class RoomsEventsGateway {
             const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
             const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
 
-            if (!roomData.roomState) {
+            if (!roomData.state) {
                 throw new WsException({ status: HttpStatus.NOT_FOUND, message: 'Room does not exist or has invalid state.' });
             }
-            else if (roomData.roomState === ROOMS_STATE_LOBBY) {
+            else if (roomData.state === ROOMS_STATE_LOBBY) {
                 if (!roomData.password || data.password && roomData.password === hashPassword(data.password)) {
                     this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomKey}`, profile.id.toString());
                     this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomId.toString());
@@ -155,9 +138,12 @@ export class RoomsEventsGateway {
                     socket.join(`/${ROOM_PREFIX}${roomId}`);
 
                     if (playersCount + 1 >= parseInt(roomData.volume)) {
-                        await this.redisService.hSet(`${ROOM_PREFIX}${roomId}`, 'state', ROOMS_STATE_INGAME);
-                        this.server.in(`/${ROOM_PREFIX}${roomId}`).emit('/rooms/state', ROOMS_STATE_INGAME);
+                        roomData.state = ROOMS_STATE_INGAME;
+                        await this.redisService.hSet(`${ROOM_PREFIX}${roomId}`, 'state', roomData.state);
+                        this.server.in(`/${ROOM_PREFIX}${roomId}`).emit('/rooms/state', roomData.state);
                     }
+
+                    return { event: ROOMS_JOIN, data: await this.roomDataToDto(roomId, roomData, playersCount, roomKey, user) };
                 }
                 else {
                     throw new WsException({ status: HttpStatus.UNAUTHORIZED, message: `room${roomId}` });
@@ -170,36 +156,37 @@ export class RoomsEventsGateway {
         else {
             throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `You're already in room ${ROOM_PREFIX}${roomId}` });
         }
-        return { event: ROOMS_JOIN, data: null };
     }
 
     @SubscribeMessage(ROOMS_LEAVE)
     //Consider returning list?
     async leave(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomEssentialDto>> {
-        const user = await this.getUser(getAuthorizedUser(socket).id);
+        const profile = await this.getProfileByUser(getAuthorizedUser(socket));
+        const roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
+        if (roomId) {
+            const roomKey = `${ROOM_PREFIX}${roomId}`;
+            const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
 
-        if (user.roomId) {
-            console.log(`leaving room${user.roomId} usr${user.id}`);
-            await this.redisService.hDel(`room${user.roomId}`, `usr${user.id}`);
-            this.users.delete(user.id);
+            console.log(`leaving ${roomKey}${PROFILE_PREFIX}${profile.id}`);
+            await this.redisService.lRem(`${ROOM_PROFILE_PREFIX}${roomId}`, profile.id.toString());
 
-            this.server.emit('/rooms/leave', `room${user.roomId}`, user);
+            this.server.emit('/rooms/leave', roomKey, profile.id);
 
-            let keys = await this.redisService.hKeys(`room${user.roomId}`);
-            let usersCount = keys.filter(key => key.match(/^usr(undefined|\d*)$/)).length;
-            if (usersCount === 0) {
-                console.log(`removing empty room${user.roomId}`, user)
-                await this.redisService.del(`room${user.roomId}`);
-                this.server.emit('/rooms/deleted', `room${user.roomId}`)
+            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
+            if (playersCount === 0) {
+                console.log(`removing empty room ${roomKey}`, profile)
+                await this.redisService.del(roomKey);
+                this.server.emit('/rooms/deleted', roomKey);
+                roomData.state = ROOMS_STATE_UNEXIST;
             }
 
-            await this.redisService.del(`usr${user.id}RoomId`);
-            user.roomId = null;
+            await this.redisService.del(`${PROFILE_ROOM_PREFIX}${profile.id}`);
+
+            return { event: ROOMS_LEAVE, data: await this.roomDataToDto(roomId, roomData, playersCount, roomKey, getAuthorizedUser(socket)) };
         }
         else {
             throw new WsException({ status: HttpStatus.BAD_REQUEST, message: 'No roomId assigned to user' })
         }
-        return { event: ROOMS_LEAVE, data: null };
     }
 
     @SubscribeMessage(ROOMS_CREATE)
@@ -286,6 +273,27 @@ export class RoomsEventsGateway {
         return { event: ROOMS_CREATE, data: null };
     }
 
+    private async roomDataToDto(roomId: number, roomData: Record<string, string>, playersCount: number, roomKey: string, user: User) {
+        let result: RoomDto = {
+            id: roomId,
+            name: roomData.name,
+            gameMode: roomData.gameMode,
+            mapId: roomData.mapId,
+            icon: null,
+            isLocked: !!roomData.password,
+            state: roomData.state,
+            passwordHash: null,
+            playersCount,
+            volume: parseInt(roomData.volume),
+            players: [],
+        };
+
+        const profileIds = await this.redisService.lRange(`${ROOM_PROFILE_PREFIX}${roomKey}`, 0, playersCount);
+        for (let profileId of profileIds) {
+            result.players.push(this.buildProfileDto(await this.getProfileById(parseInt(profileId)), user));
+        }
+        return result;
+    }
 
     buildProfileDto(profile: Profile, user: User): ProfileDto {
         return {

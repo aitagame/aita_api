@@ -1,4 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from "typeorm";
+import { createHash } from "crypto";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, BeforeInsert, OneToMany } from "typeorm";
+import { AccessKey } from "../auth/accessKey.model";
 import { Clan } from "../clans/clan.model";
 
 @Entity()
@@ -13,16 +15,19 @@ export class User {
     @JoinColumn({ name: 'clan_id' })
     clan: Clan;
 
+    @OneToMany(() => AccessKey, accessKey => accessKey.user_id)
+    accessKeys: AccessKey[];
+
     @Column()
     firstName: string;
 
-    @Column()
+    @Column({ nullable: true })
     lastName: string;
 
-    @Column()
+    @Column({ nullable: true })
     email: string;
 
-    @Column({ select: false })
+    @Column({ nullable: true, select: false })
     password: string;
 
     @CreateDateColumn()

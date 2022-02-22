@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { createHash } from "crypto";
 import { sign, decode } from 'jsonwebtoken';
+import { hashPassword } from "src/common/utils";
 import { Repository } from "typeorm";
 import { CreateUserDto } from "./dto/createUser.dto";
 import { LoginUserDto } from "./dto/loginUser.dto";
@@ -23,7 +23,7 @@ export class UserService {
         if (user) {
             throw new HttpException('Email are taken', HttpStatus.UNPROCESSABLE_ENTITY);
         }
-        createUserDto.password = this.hashPassword(createUserDto.password);
+        createUserDto.password = hashPassword(createUserDto.password);
 
         const createUser = new User();
         Object.assign(createUser, createUserDto);
@@ -42,7 +42,7 @@ export class UserService {
             throw new HttpException('User not found', HttpStatus.NOT_FOUND);
         }
 
-        loginUserDto.password = this.hashPassword(loginUserDto.password);
+        loginUserDto.password = hashPassword(loginUserDto.password);
 
         if (loginUserDto.password !== user.password) {
             throw new HttpException('Invalid password', HttpStatus.BAD_REQUEST);
@@ -62,13 +62,6 @@ export class UserService {
                 token: this.generateJwt(user)
             }
         }
-    }
-
-    hashPassword(password: string) {
-        return createHash('sha256')
-            .update(`${password}${process.env['PASSWORD_HASH_SALT']}`)
-            .digest()
-            .toString('hex');
     }
 
     findById(id: number, options?): Promise<User> {

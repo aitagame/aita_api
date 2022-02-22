@@ -18,5 +18,14 @@ export class RoomEssentialDto {
     readonly isLocked: boolean;
 
     @ApiProperty()
-    readonly playersCount: number
+    readonly gameMode: string;
+
+    @ApiProperty()
+    readonly state: string;
+
+    @ApiProperty()
+    readonly playersCount: number;
+
+    @ApiProperty()
+    readonly volume: number;
 }

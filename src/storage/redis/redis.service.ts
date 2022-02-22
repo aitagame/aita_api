@@ -8,7 +8,7 @@ export class RedisService {
 
   async onModuleInit(): Promise<void> {
     await this.redisClient.connect();
-  }  
+  }
 
   async keys(wildcard: string): Promise<string[]> {
     return await this.redisClient.keys(wildcard);
@@ -74,4 +74,29 @@ export class RedisService {
 
     return !isNaN(resp);
   }
+
+  async lIndex(key: string, index: number): Promise<string> {
+    return await this.redisClient.lIndex(key, index);
+  }
+
+  async lRange(key: string, from: number, to: number): Promise<Array<string>> {
+    return await this.redisClient.lRange(key, from, to);
+  }
+
+  async lLen(key: string): Promise<number> {
+    return await this.redisClient.lLen(key);
+  }
+
+  async rPush(key: string, value: string): Promise<number> {
+    return await this.redisClient.rPush(key, value);
+  }
+
+  async lSet(key: string, index: number, value: string): Promise<string> {
+    return await this.redisClient.lSet(key, index, value);
+  }
+
+  async lRem(key: string, value: string): Promise<number> {
+    return await this.redisClient.lRem(key, 1, value);
+  }
+
 }

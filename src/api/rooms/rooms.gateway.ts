@@ -2,7 +2,7 @@ import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsRes
 import { Server, Socket } from "socket.io";
 import { createHash } from "crypto";
 import { RoomEssentialDto } from "./dto/roomEssential.dto";
-import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX } from "./consts";
+import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX, ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX } from "./consts";
 import { RoomDto } from "./dto/room.dto";
 import { WsGuard } from "../users/guards/ws.gurard";
 import { HttpStatus, UseGuards } from "@nestjs/common";
@@ -12,8 +12,21 @@ import { Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Profile } from "../profiles/profile.model";
 import { getAuthorizedUser } from "../users/guards/utils";
+import ProfileDto from "../profiles/dto/profile.dto";
+import { hashPassword } from "src/common/utils";
 
-//TODO: Reimplement with profiles and DTOs
+const roomTemplate = {
+    mapId: null,
+    gameMode: null,
+    name: null,
+    volume: null,
+    state: null,
+    mode: null,
+    icon: null,
+    password: null
+}
+const roomFieldlist = Object.keys(roomTemplate);
+
 @WebSocketGateway({
     cors: {
         origin: "*"
@@ -22,123 +35,128 @@ import { getAuthorizedUser } from "../users/guards/utils";
 @UseGuards(WsGuard)
 export class RoomsEventsGateway {
     server: Server;
-    private users: Map<number, User>;
+    private userProfileMapping: Map<number, number>;
     private profiles: Map<number, Profile>;
 
     constructor(
         private redisService: RedisService,
-        @InjectRepository(User)
-        private userRepository: Repository<User>,
         @InjectRepository(Profile)
         private profileRepository: Repository<Profile>
     ) { }
 
     @SubscribeMessage(ROOMS_LIST)
     async list(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<Array<RoomEssentialDto>>> {
-        const { query } = data;
-        const roomsKeys = await this.redisService.keys('room[0-9]*');
+        const { query = null, page = 1, limit = 10 } = data;
 
-        let roomsList = await Promise.all(roomsKeys.map(async (roomKey) => {
-            let roomId = roomKey.split('room').pop();
-            let passHash = await this.redisService.hGet(`room${roomId}`, 'password');
-            let roomData = {
-                users: [],
-                usersCount: 0,
-                roomKey: roomKey,
-                password: !!passHash
-            };
-
-
-            let keys = await this.redisService.hKeys(roomKey);
-
-            let usersCount = 0;
-            for (let key of keys) {
-                if (key.match(/^usr(undefined|\d*)$/)) {
-                    usersCount++;
-                    roomData.users.push(await this.getUser(parseInt(key.split('usr').pop())));
-                }
-                else if (key !== 'password') {
-                    roomData[key] = await this.redisService.hGet(roomKey, key);
-                }
+        let roomsKeys = [];
+        if (query) {
+            //TODO: Replace with SCAN
+            let roomNames = await this.redisService.keys(`${ROOM_NAME_PREFIX}*${query}*`);
+            for (let roomName of roomNames) {
+                roomsKeys.push(await this.redisService.get(`${ROOM_NAME_PREFIX}${roomName}`));
             }
-            roomData.usersCount = usersCount;
+        }
+        else {
+            roomsKeys = await this.redisService.keys(`${ROOM_PREFIX}\d\d*`);
+        }
 
-            return roomData;
-        }));
+        let result: Array<RoomEssentialDto> = [];
+        while (result.length < page * limit && roomsKeys.length) {
+            const roomKey = roomsKeys.shift();
+            const id = roomKey.split(ROOM_PREFIX).pop();
+            const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
+            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`)
 
-        return { event: ROOMS_LIST, data: [] /* roomsList */ };
+            result.push({
+                id,
+                name: String(roomData.name).toString(),
+                gameMode: roomData.gameMode,
+                icon: null,
+                isLocked: !!roomData.password,
+                state: roomData.state,
+                playersCount,
+                volume: parseInt(roomData.volume)
+            });
+        }
+
+        return { event: ROOMS_LIST, data: result };
     }
 
     @SubscribeMessage(ROOMS_GET)
     async get(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
-        const user = await this.getUser(getAuthorizedUser(socket).id);
-        let roomId = user.roomId;
-        let roomKey = `room${roomId}`;
-        let passHash = await this.redisService.hGet(roomKey, 'password');
-        let roomData = {
-            users: [],
-            usersCount: 0,
-            password: !!passHash
-        };
+        const user = getAuthorizedUser(socket);
+        const profile = await this.getProfileByUser(user);
+        const roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
+        let roomKey = `${ROOM_PREFIX}${roomId}`;
 
-        let keys = await this.redisService.hKeys(roomKey);
-        let usersCount = 0;
-        for (let key of keys) {
-            if (key.match(/^usr(undefined|\d*)$/)) {
-                usersCount++;
-                roomData.users.push(await this.getUser(parseInt(key.split('usr').pop())));
-            }
-            else if (key !== 'password') {
-                roomData[key] = await this.redisService.hGet(roomKey, key);
-            }
+        const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
+        const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
+
+        let result: RoomDto = {
+            id: roomId,
+            name: roomData.name,
+            gameMode: roomData.gameMode,
+            mapId: roomData.mapId,
+            icon: null,//roomData.icon
+            isLocked: !!roomData.password,
+            state: roomData.state,
+            passwordHash: null,
+            playersCount,
+            volume: parseInt(roomData.volume),
+            players: [],
         }
-        roomData.usersCount = usersCount;
 
-        //     socket.emit('/rooms/my', roomKey, roomData);
-        return { event: ROOMS_GET, data: null };
+        const profileIds = await this.redisService.lRange(`${ROOM_PROFILE_PREFIX}${roomKey}`, 0, playersCount);
+        for (let profileId of profileIds) {
+            result.players.push(this.buildProfileDto(await this.getProfileById(parseInt(profileId)), user));
+        }
+
+        return { event: ROOMS_GET, data: result };
     }
 
     @SubscribeMessage(ROOMS_GET_ID)
     async getRoomId(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<number>> {
-        const roomId = parseInt(await this.redisService.get(`usr${getAuthorizedUser(socket).id}RoomId`));
+        const user = getAuthorizedUser(socket);
+        const profile = await this.getProfileByUser(user);
+        const roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
 
         return { event: ROOMS_GET_ID, data: isNaN(roomId) ? null : roomId };
     }
 
     @SubscribeMessage(ROOMS_JOIN)
     async join(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
-        const user = await this.getUser(getAuthorizedUser(socket).id);
-        if (!user.roomId) {
-            const roomId = data.roomId.split('room').pop();
+        const user = await getAuthorizedUser(socket);
+        const profile = await this.getProfileByUser(user);
+        const currentRoomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
 
-            let roomState = await this.redisService.hGet(`room${roomId}`, `state`);
-            if (!roomState) {
-                throw new WsException({ status: HttpStatus.NOT_FOUND, message: 'Room does not exist.' });
+        data.roomId = data.roomId.replace(/\*/g, '');
+        const roomId = parseInt(await this.redisService.keys(data.roomId)[0]);
+        if (!roomId) {
+            throw new WsException({ status: HttpStatus.NOT_FOUND, message: 'Room not found' });
+        }
+
+        if (!currentRoomId) {
+            const roomKey = `${ROOM_PREFIX}${roomId}`;
+            const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
+            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
+
+            if (!roomData.roomState) {
+                throw new WsException({ status: HttpStatus.NOT_FOUND, message: 'Room does not exist or has invalid state.' });
             }
-            else if (roomState == ROOMS_STATE_LOBBY) {
-                let passHash = await this.redisService.hGet(`room${roomId}`, 'password');
+            else if (roomData.roomState === ROOMS_STATE_LOBBY) {
+                if (!roomData.password || data.password && roomData.password === hashPassword(data.password)) {
+                    this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomKey}`, profile.id.toString());
+                    this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomId.toString());
 
-                if (!passHash || data.password && passHash == createHash('sha256').update(data.password).digest('hex')) {
-                    await this.redisService.hSet(`room${roomId}`, `usr${user.id}`, ROOMS_USER_STATE_ONLINE.toString());
-                    this.users.set(user.id, user);
+                    console.log(`connecting ${ROOM_PREFIX}${roomKey} ${PROFILE_PREFIX}${profile.id}`);
 
-                    //assign roomId for user
-                    user.roomId = roomId;
-                    await this.redisService.set(`usr${user.id}RoomId`, roomId)
-                    console.log(`connecting room${user.roomId} usr${user.id}`);
-
-                    // this.socketIOServer.in(`/room${roomId}`).emit('/rooms/connect', roomId, user);
-                    // socket.emit('/rooms/connect', roomId, user);
                     this.server.emit('/rooms/connect', `room${roomId}`, user);
 
-                    socket.join(`/room${roomId}`);
-                    let keys = await this.redisService.hKeys(`room${roomId}`);
-                    keys = keys.filter(key => key.match(/^usr(undefined|\d*)$/));
-                    let roomVolume = parseInt(await this.redisService.hGet(`room${roomId}`, 'volume'));
+                    socket.join(`/${ROOM_PREFIX}${roomId}`);
 
-                    if (keys.length >= roomVolume) {
-                        await this.redisService.hSet(`room${roomId}`, 'state', ROOMS_STATE_INGAME);
-                        this.server.in(`/room${roomId}`).emit('/rooms/state', ROOMS_STATE_INGAME);
+                    if (playersCount + 1 >= parseInt(roomData.volume)) {
+                        await this.redisService.hSet(`${ROOM_PREFIX}${roomId}`, 'state', ROOMS_STATE_INGAME);
+                        this.server.in(`/${ROOM_PREFIX}${roomId}`).emit('/rooms/state', ROOMS_STATE_INGAME);
                     }
                 }
                 else {
@@ -150,7 +168,7 @@ export class RoomsEventsGateway {
             }
         }
         else {
-            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `You're already in room room${user.roomId}` });
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `You're already in room ${ROOM_PREFIX}${roomId}` });
         }
         return { event: ROOMS_JOIN, data: null };
     }
@@ -269,18 +287,51 @@ export class RoomsEventsGateway {
     }
 
 
-    async getUser(id: number) {
-        let user = this.users.get(id);
-        if (user) {
-            return user;
-        }
-
-        user = await this.userRepository.findOne(id);
-        if (user) {
-            user.roomId = parseInt(await this.redisService.get(`usr${user.id}RoomId`))
-            this.users.set(user.id, user);
-        }
-        return user;
+    buildProfileDto(profile: Profile, user: User): ProfileDto {
+        return {
+            id: profile.id,
+            name: profile.name,
+            class: profile.class,
+            rating: profile.gamesWon,
+            is_my: profile.user_id === user.id
+        };
     }
 
+    //TODO: Find a way to prevent possible inconsistency with 1:1 relation
+    async getProfileByUser(user: User): Promise<Profile> {
+        let profileId = this.userProfileMapping.get(user.id);
+        if (profileId) {
+            return this.getProfileById(profileId);
+        }
+
+        let profile = await this.profileRepository.findOne({ user_id: user.id });
+        if (profile) {
+            return this.cacheProfile(profile);
+        }
+
+        console.error(`Current user profile not found ${user.id}`);
+        throw new WsException({ status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Invalid state' });
+    }
+
+    async getProfileById(profileId: number): Promise<Profile> {
+        let profile = this.profiles.get(profileId);
+        if (profile) {
+            return profile;
+        }
+
+        profile = await this.profileRepository.findOne(profile.id);
+        if (profile) {
+            return this.cacheProfile(profile);
+        }
+
+        console.error(`Current profile not found ${profile.id}`);
+        throw new WsException({ status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Invalid state' });
+    }
+
+    async cacheProfile(profile: Profile): Promise<Profile> {
+        profile.roomId = parseInt(await this.redisService.get(`${PROFILE_PREFIX}${profile.id}RoomId`))
+        this.userProfileMapping.set(profile.user_id, profile.id);
+        this.profiles.set(profile.id, profile);
+        return profile;
+    }
 }

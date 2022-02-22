@@ -33,7 +33,4 @@ export class User {
 
     @DeleteDateColumn()
     deleted_at: Date;
-
-    //Metadata
-    [x: string]: any;
 }

@@ -8,19 +8,16 @@ export class RoomDto extends RoomEssentialDto {
     players: Array<ProfileDto>;
 
     @ApiProperty()
-    passwordHash: Array<any>;
+    passwordHash: string;
 
     @ApiProperty()
-    readonly gameMode: string;
+    readonly mapId: string;
 
-    @ApiProperty()
-    readonly map: string;
+    // @ApiProperty()
+    // //Current player's bet
+    // readonly bet: number;
 
-    @ApiProperty()
-    //Current player's bet
-    readonly bet: number;
-
-    @ApiProperty()
-    //Total bet for distribution
-    readonly betTotal: number;
+    // @ApiProperty()
+    // //Total bet for distribution
+    // readonly betTotal: number;
 }

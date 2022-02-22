@@ -1,22 +1,19 @@
 import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
+import { assert } from "console";
 import { createHash } from "crypto";
 import { sign, decode } from 'jsonwebtoken';
 import { Repository } from "typeorm";
-import { AccessKey } from "../auth/accessKey.model";
 import { CreateUserDto } from "./dto/createUser.dto";
 import { GetUserByAccessKeyDto } from "./dto/getUserByAccessKey.dto";
 import { LoginUserDto } from "./dto/loginUser.dto";
-import { UserResponseInterface } from "./types/userResponse.interface";
 import { User } from "./user.model";
 
 @Injectable()
 export class UserService {
     constructor(
         @InjectRepository(User)
-        private readonly userRepository: Repository<User>,
-        @InjectRepository(AccessKey)
-        private readonly accessKeyRepository: Repository<AccessKey>,
+        private readonly userRepository: Repository<User>
     ) { }
 
     //Registration user
@@ -33,7 +30,7 @@ export class UserService {
         Object.assign(createUser, createUserDto);
         await this.userRepository.save(createUser);
         delete createUser.password;
-        
+
         return createUser;
     }
 
@@ -82,6 +79,7 @@ export class UserService {
     }
 
     findById(id: number, options?): Promise<User> {
+        assert(!!id, new HttpException('ID should be provided!', HttpStatus.INTERNAL_SERVER_ERROR));
         return this.userRepository.findOne(id, options);
     }
 

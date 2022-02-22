@@ -8,6 +8,9 @@ export class AccessKey {
 
     @ManyToOne(() => User, user_id => user_id.accessKeys)
     @JoinColumn({ name: 'user_id' })
+    user: User;
+  
+    @Column()
     user_id: number;
 
     @Column()

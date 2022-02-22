@@ -7,7 +7,7 @@ export class AccessKey {
     id: number;
 
     @ManyToOne(() => User, user_id => user_id.accessKeys)
-    @JoinColumn({ name: 'id' })
+    @JoinColumn({ name: 'user_id' })
     user_id: number;
 
     @Column()

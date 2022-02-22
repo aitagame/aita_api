@@ -3,7 +3,9 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { createHash } from "crypto";
 import { sign, decode } from 'jsonwebtoken';
 import { Repository } from "typeorm";
+import { AccessKey } from "../auth/accessKey.model";
 import { CreateUserDto } from "./dto/createUser.dto";
+import { GetUserByAccessKeyDto } from "./dto/getUserByAccessKey.dto";
 import { LoginUserDto } from "./dto/loginUser.dto";
 import { UserResponseInterface } from "./types/userResponse.interface";
 import { User } from "./user.model";
@@ -13,6 +15,8 @@ export class UserService {
     constructor(
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        @InjectRepository(AccessKey)
+        private readonly accessKeyRepository: Repository<AccessKey>,
     ) { }
 
     //Registration user
@@ -52,17 +56,23 @@ export class UserService {
         return user;
     }
 
+    async createUserWithKey(getUserByAccessKeyDto: GetUserByAccessKeyDto): Promise<User> {
+        const createUser = this.userRepository.create({ firstName: getUserByAccessKeyDto.accountId });
+        await this.userRepository.save(createUser);
+        delete createUser.password;
+        return createUser;
+    }
 
 
     //Regular functions
-    buildUserResponse(user: User): UserResponseInterface {
-        return {
-            user: {
-                ...user,
-                token: this.generateJwt(user)
-            }
-        }
-    }
+    // buildUserResponse(user: User): UserResponseInterface {
+    //     return {
+    //         user: {
+    //             ...user,
+    //             token: this.generateJwt(user)
+    //         }
+    //     }
+    // }
 
     hashPassword(password: string) {
         return createHash('sha256')

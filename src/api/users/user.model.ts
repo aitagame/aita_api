@@ -21,13 +21,13 @@ export class User {
     @Column()
     firstName: string;
 
-    @Column()
+    @Column({ nullable: true })
     lastName: string;
 
-    @Column()
+    @Column({ nullable: true })
     email: string;
 
-    @Column({ select: false })
+    @Column({ nullable: true, select: false })
     password: string;
 
     @CreateDateColumn()

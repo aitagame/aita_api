@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Post, Res, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Res, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
 import { ApiBody, ApiHeader, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Response } from "express";
+import { AuthService } from "../auth/auth.service";
 import { UserDecorator } from "./decorators/user.decorator";
 import { CreateUserDto } from "./dto/createUser.dto";
+import { GetUserByAccessKeyDto } from "./dto/getUserByAccessKey.dto";
 import { LoginUserDto } from "./dto/loginUser.dto";
 import { AuthGuard } from "./guards/auth.guard";
 import { UserResponseInterface } from "./types/userResponse.interface";
@@ -12,7 +14,8 @@ import { UserService } from "./user.service";
 @Controller('users')
 export class UserContoller{
     constructor(
-        private readonly userService: UserService
+        private readonly userService: UserService,
+        private readonly authService: AuthService,
     ) {}
     
     @Post('register')
@@ -53,5 +56,25 @@ export class UserContoller{
     @UseGuards(AuthGuard)
     async getUser(@UserDecorator() user: User): Promise<User> {
         return user;
+    }
+
+    //ACCESS KEY ROUTES 
+
+    @Post('authorization/near')
+    @ApiTags('users')
+    async getUserByAccessKey(@Body() getUserByAccessKeyDto: GetUserByAccessKeyDto , @Res() response: Response): Promise<Response> {
+        const key = await this.authService.getKey(getUserByAccessKeyDto.accessKey);
+
+        let user = null;
+        if(!key) {
+            await this.authService.registerKeyValue(getUserByAccessKeyDto.accessKey);
+            user = await this.userService.createUserWithKey(getUserByAccessKeyDto);
+            await this.authService.createKeyWithUser(user.id, getUserByAccessKeyDto.accessKey)
+        } else {
+            user = await this.userService.findById(key.user_id);
+        }
+        
+        response.set({ 'authorization':  this.userService.generateJwt(user)})
+        return response.status(200).json(user);
     }
 }

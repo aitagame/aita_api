@@ -1,11 +1,11 @@
-import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsResponse, WsException } from "@nestjs/websockets";
+import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsResponse, WsException, BaseWsExceptionFilter, WebSocketServer } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { createHash } from "crypto";
 import { RoomEssentialDto } from "./dto/roomEssential.dto";
 import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX, ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX, ROOMS_STATE_UNEXIST, ROOM_DEFAULT_VOLUME, ROOM_MAX_VOLUME } from "./consts";
 import { RoomDto } from "./dto/room.dto";
 import { WsGuard } from "../users/guards/ws.gurard";
-import { HttpStatus, UseGuards } from "@nestjs/common";
+import { HttpStatus, UseFilters, UseGuards } from "@nestjs/common";
 import { RedisService } from "src/storage/redis/redis.service";
 import { User } from "../users/user.model";
 import { Repository } from "typeorm";
@@ -33,9 +33,10 @@ const roomFieldlist = Object.keys(roomTemplate);
 })
 @UseGuards(WsGuard)
 export class RoomsEventsGateway {
+    @WebSocketServer()
     server: Server;
-    private userProfileMapping: Map<number, number>;
-    private profiles: Map<number, Profile>;
+    private userProfileMapping: Map<number, number> = new Map();
+    private profiles: Map<number, Profile> = new Map();
 
     constructor(
         private redisService: RedisService,
@@ -56,7 +57,7 @@ export class RoomsEventsGateway {
             }
         }
         else {
-            roomsKeys = await this.redisService.keys(`${ROOM_PREFIX}\d\d*`);
+            roomsKeys = await this.redisService.keys(`${ROOM_PREFIX}*`);
         }
 
         let result: Array<RoomEssentialDto> = [];
@@ -84,8 +85,11 @@ export class RoomsEventsGateway {
     @SubscribeMessage(ROOMS_GET)
     async get(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
         const user = getAuthorizedUser(socket);
-        const profile = await this.getProfileByUser(user);
-        const roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
+        const roomId = data.id;
+        //TODO: Replace with asserts
+        if (!roomId) {
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: 'Room ID should be provided' });
+        }
         let roomKey = `${ROOM_PREFIX}${roomId}`;
 
         const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
@@ -110,9 +114,14 @@ export class RoomsEventsGateway {
         const user = await getAuthorizedUser(socket);
         const profile = await this.getProfileByUser(user);
         const currentRoomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
+        if (!data.id) {
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: 'Room ID should be specified' });
+        }
 
-        data.roomId = data.roomId.replace(/\*/g, '');
-        const roomId = parseInt(await this.redisService.keys(data.roomId)[0]);
+        data.id = data.id.toString().replace(/\*/g, '');
+        let roomKey = `${ROOM_PREFIX}${data.id}`;
+
+        const roomId = parseInt(await this.redisService.hGet(roomKey, 'id'));
         if (!roomId) {
             throw new WsException({ status: HttpStatus.NOT_FOUND, message: 'Room not found' });
         }
@@ -188,6 +197,7 @@ export class RoomsEventsGateway {
         }
     }
 
+    @UseFilters(new BaseWsExceptionFilter())
     @SubscribeMessage(ROOMS_CREATE)
     async create(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
         const profile = await this.getProfileByUser(getAuthorizedUser(socket));
@@ -231,7 +241,8 @@ export class RoomsEventsGateway {
             console.log(`creating ${roomKey}`, { mapId, name, volume: volume || process.env['DEFAULT_ROOM_VOLUME'], state: ROOMS_STATE_LOBBY, mode, profileId: profile.id });
 
             const roomData = {
-                'mapId': mapId,
+                'id': roomLastId.toString(),
+                'mapId': mapId || null,
                 'name': name,
                 'volume': volume || process.env['DEFAULT_ROOM_VOLUME'],
                 'state': ROOMS_STATE_LOBBY,
@@ -239,11 +250,10 @@ export class RoomsEventsGateway {
                 'mode': mode,
                 ...(password && { password: passHash = createHash('sha256').update(password).digest('hex') })
             };
-
             await this.redisService.hmSet(roomKey, roomData);
 
             await this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomKey}`, profile.id.toString());
-            await this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomId.toString());
+            await this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomLastId.toString());
 
             this.server.emit('/rooms/create', roomKey, {
                 name: name,
@@ -254,7 +264,7 @@ export class RoomsEventsGateway {
             this.server.emit('/rooms/connect', roomKey, profile);
             socket.join(`/${roomKey}`);
 
-            return { event: ROOMS_CREATE, data: await this.roomDataToDto(roomId, roomData, 1, roomKey, getAuthorizedUser(socket)) };
+            return { event: ROOMS_CREATE, data: await this.roomDataToDto(roomLastId, roomData, 1, roomKey, getAuthorizedUser(socket)) };
 
         }
         else {
@@ -317,7 +327,7 @@ export class RoomsEventsGateway {
             return profile;
         }
 
-        profile = await this.profileRepository.findOne(profile.id);
+        profile = await this.profileRepository.findOne(profileId);
         if (profile) {
             return this.cacheProfile(profile);
         }

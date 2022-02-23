@@ -1,4 +1,4 @@
-import assert from "assert";
+import * as assert from "assert";
 import { createClient, RedisClientType, RedisModules } from "redis";
 
 export class RedisService {

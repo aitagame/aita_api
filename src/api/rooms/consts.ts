@@ -39,6 +39,8 @@ export const ROOM_PROFILE_PREFIX = 'RP_';
 export const PROFILE_ROOM_PREFIX = 'PR_';
 
 export const ROOM_NAME_REGEX = /[A-Za-z0-9А-Яа-я\ \_\:\№\"\?\!\-\+\=\*\/\#\@\^\,\.\(\)\[\]\{\}\<\>\$\%\;\&]*/;
+export const ROOM_DEFAULT_VOLUME = 10;
+export const ROOM_MAX_VOLUME = 100;
 export const MIN_ROOM_NAME_LENGTH = 0;
 export const MAX_ROOM_NAME_LENGTH = 20;
 export const MAX_PASSWORD_LENGTH = 20;

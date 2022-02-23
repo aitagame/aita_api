@@ -18,7 +18,7 @@ export class RoomEssentialDto {
     readonly isLocked: boolean;
 
     @ApiProperty()
-    readonly gameMode: string;
+    readonly mode: string;
 
     @ApiProperty()
     readonly state: string;

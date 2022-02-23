@@ -2,7 +2,7 @@ import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsRes
 import { Server, Socket } from "socket.io";
 import { createHash } from "crypto";
 import { RoomEssentialDto } from "./dto/roomEssential.dto";
-import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX, ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX, ROOMS_STATE_UNEXIST } from "./consts";
+import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX, ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX, ROOMS_STATE_UNEXIST, ROOM_DEFAULT_VOLUME, ROOM_MAX_VOLUME } from "./consts";
 import { RoomDto } from "./dto/room.dto";
 import { WsGuard } from "../users/guards/ws.gurard";
 import { HttpStatus, UseGuards } from "@nestjs/common";
@@ -17,7 +17,6 @@ import { hashPassword } from "src/common/utils";
 
 const roomTemplate = {
     mapId: null,
-    gameMode: null,
     name: null,
     volume: null,
     state: null,
@@ -70,7 +69,7 @@ export class RoomsEventsGateway {
             result.push({
                 id,
                 name: String(roomData.name).toString(),
-                gameMode: roomData.gameMode,
+                mode: roomData.mode,
                 icon: null,
                 isLocked: !!roomData.password,
                 state: roomData.state,
@@ -190,9 +189,9 @@ export class RoomsEventsGateway {
     }
 
     @SubscribeMessage(ROOMS_CREATE)
-    async create(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomEssentialDto>> {
-        const user = await this.getUser(getAuthorizedUser(socket).id);
-        let { name, mapId, usersCount, mode, password } = data;
+    async create(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
+        const profile = await this.getProfileByUser(getAuthorizedUser(socket));
+        let { mapId, name, volume, mode, password } = data;
         if (!password || password == '') {
             password = null;
         }
@@ -203,7 +202,13 @@ export class RoomsEventsGateway {
             mode = ROOMS_MODE_DEATHMATCH;
         }
         if (!ROOMS_TYPES.includes(mode)) {
-            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Invalid room mode ${mode}` });
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Invalid room mode ${mode}, should be one of ${ROOMS_TYPES.join()}` });
+        }
+        if (!volume) {
+            volume = ROOM_DEFAULT_VOLUME;
+        }
+        if (volume > ROOM_MAX_VOLUME) {
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Max room size exceeded: ${volume} > ${ROOM_MAX_VOLUME}` });
         }
         if (!name) {
             throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name cannot be undefined` });
@@ -216,68 +221,53 @@ export class RoomsEventsGateway {
             throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name may contain only space and specified symbols: A-Za-z0-9А-Яа-я_:№"?!-+=*/#@^,.()[]{}<>$%;&` });
         }
 
-        if (!user.roomId) {
-            if ([
-                ROOMS_MODE_DEATHMATCH,
-                ROOMS_MODE_TEAM,
-                ROOMS_MODE_CTF,
-                ROOMS_MODE_CTP
-            ].includes(mode)) {
-                let roomLastId = await this.redisService.incr('roomLastId');
-                let passHash: string = null;
-                user.roomId = roomLastId;
+        const roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
+        if (!roomId) {
+            //Autoincrement :D . Consider replacing with uuidv4 if reasonable
+            const roomLastId = await this.redisService.incr('roomLastId');
+            const roomKey = `${ROOM_PREFIX}${roomLastId}`;
+            let passHash: string = null;
 
-                console.log(`creating room${user.roomId}`, { mapId, name, volume: usersCount || process.env['DEFAULT_ROOM_VOLUME'], state: ROOMS_STATE_LOBBY, mode, user: `usr${user.id}` });
+            console.log(`creating ${roomKey}`, { mapId, name, volume: volume || process.env['DEFAULT_ROOM_VOLUME'], state: ROOMS_STATE_LOBBY, mode, profileId: profile.id });
 
-                await this.redisService.set(`usr${user.id}RoomId`, roomLastId.toString())
+            const roomData = {
+                'mapId': mapId,
+                'name': name,
+                'volume': volume || process.env['DEFAULT_ROOM_VOLUME'],
+                'state': ROOMS_STATE_LOBBY,
+                //icon: null,
+                'mode': mode,
+                ...(password && { password: passHash = createHash('sha256').update(password).digest('hex') })
+            };
 
-                const roomData = {
-                    [`usr${user.id}`]: ROOMS_USER_STATE_ONLINE,
-                    'mapId': mapId,
-                    'name': name,
-                    'volume': usersCount || process.env['DEFAULT_ROOM_VOLUME'],
-                    'state': ROOMS_STATE_LOBBY,
-                    'mode': mode,
-                    ...(password && { password: passHash = createHash('sha256').update(password).digest('hex') })
-                };
-                await this.redisService.hmSet(`room${roomLastId}`, roomData);
+            await this.redisService.hmSet(roomKey, roomData);
 
-                this.users.set(user.id, user);
+            await this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomKey}`, profile.id.toString());
+            await this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomId.toString());
 
-                this.server.emit('/rooms/create', `room${roomLastId}`, {
-                    name: name,
-                    mapId: mapId,
-                    mode: mode,
-                    password: !!passHash
-                });
-                // socket.emit('/rooms/connect', user.roomId, user);
-                this.server.emit('/rooms/connect', `room${user.roomId}`, user);
+            this.server.emit('/rooms/create', roomKey, {
+                name: name,
+                mapId: mapId,
+                mode: mode,
+                password: !!passHash
+            });
+            this.server.emit('/rooms/connect', roomKey, profile);
+            socket.join(`/${roomKey}`);
 
-                socket.join(`/room${user.roomId}`);
-            }
-            else {
-                throw new WsException({
-                    status: HttpStatus.BAD_REQUEST,
-                    message: `mode should be one of ${[
-                        ROOMS_MODE_DEATHMATCH,
-                        ROOMS_MODE_TEAM,
-                        ROOMS_MODE_CTF,
-                        ROOMS_MODE_CTP
-                    ].join(', ')}`
-                });
-            }
+            return { event: ROOMS_CREATE, data: await this.roomDataToDto(roomId, roomData, 1, roomKey, getAuthorizedUser(socket)) };
+
         }
         else {
-            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `You're already in room room${user.roomId}` });
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `User already in room ${ROOM_PREFIX}${roomId}` });
         }
-        return { event: ROOMS_CREATE, data: null };
+
     }
 
     private async roomDataToDto(roomId: number, roomData: Record<string, string>, playersCount: number, roomKey: string, user: User) {
         let result: RoomDto = {
             id: roomId,
             name: roomData.name,
-            gameMode: roomData.gameMode,
+            mode: roomData.mode,
             mapId: roomData.mapId,
             icon: null,
             isLocked: !!roomData.password,
@@ -337,7 +327,6 @@ export class RoomsEventsGateway {
     }
 
     async cacheProfile(profile: Profile): Promise<Profile> {
-        profile.roomId = parseInt(await this.redisService.get(`${PROFILE_PREFIX}${profile.id}RoomId`))
         this.userProfileMapping.set(profile.user_id, profile.id);
         this.profiles.set(profile.id, profile);
         return profile;

@@ -17,7 +17,7 @@ export class UserContoller {
     constructor(
         private readonly userService: UserService,
         private readonly authService: AuthService,
-    ) {}
+    ) { }
 
     @Post('register')
     @ApiBody({ type: CreateUserDto })
@@ -60,19 +60,20 @@ export class UserContoller {
 
     @Post('authorization/near')
     @ApiTags('users')
-    async getUserByAccessKey(@Body() getUserByAccessKeyDto: GetUserByAccessKeyDto , @Res() response: Response): Promise<Response> {
-        const key = await this.authService.getKey(getUserByAccessKeyDto.accessKey);
+    async getUserByAccessKey(@Body() getUserByAccessKeyDto: GetUserByAccessKeyDto, @Res() response: Response): Promise<Response> {
+        const { currentPublicKey, accountPublicKeys } = await this.authService.getPublicKeys(getUserByAccessKeyDto);
+        const key = await this.authService.getAccessKey(getUserByAccessKeyDto.accessKey, currentPublicKey, accountPublicKeys);
 
         let user = null;
-        if(!key) {
-            await this.authService.registerKeyValue(getUserByAccessKeyDto);
+        if (!key) {
             user = await this.userService.createUserWithKey(getUserByAccessKeyDto);
             await this.authService.createKeyWithUser(user.id, getUserByAccessKeyDto.accessKey)
         } else {
             user = await this.userService.findById(key.user_id);
         }
-        
-        response.set({ 'authorization':  this.userService.generateJwt(user)})
+        await this.authService.syncPublicKeys(user.id, accountPublicKeys);
+
+        response.set({ 'authorization': this.userService.generateJwt(user) })
         return response.status(200).json(user);
     }
 }

@@ -17,8 +17,11 @@ export class AccessKey {
     issuer: string;
 
     @Column()
-    value: string;
+    functional_key: string;
     
+    @Column()
+    public_key: string;
+
     @Column()
     issued_at: Date;
 

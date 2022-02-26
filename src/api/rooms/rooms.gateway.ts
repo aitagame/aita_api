@@ -4,7 +4,7 @@ import { createHash } from "crypto";
 import { RoomEssentialDto } from "./dto/roomEssential.dto";
 import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX, ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX, ROOMS_STATE_UNEXIST, ROOM_DEFAULT_VOLUME, ROOM_MAX_VOLUME } from "./consts";
 import { RoomDto } from "./dto/room.dto";
-import { WsGuard } from "../users/guards/ws.gurard";
+import { WsGuard } from "../users/guards/ws.guard";
 import { HttpStatus, UseFilters, UseGuards } from "@nestjs/common";
 import { RedisService } from "src/storage/redis/redis.service";
 import { User } from "../users/user.model";

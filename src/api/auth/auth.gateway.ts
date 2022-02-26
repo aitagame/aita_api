@@ -8,7 +8,7 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { isUserAuthorized } from "../users/guards/utils";
-import { WsGuard } from "../users/guards/ws.gurard";
+import { WsGuard } from "../users/guards/ws.guard";
 
 @WebSocketGateway({
     cors: {

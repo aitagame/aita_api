@@ -11,7 +11,8 @@ import { UserService } from "./user.service";
 @Module({
     controllers: [UserContoller],
     providers: [UserService, AuthService],
-    imports: [TypeOrmModule.forFeature([User, Profile, AccessKey])]
+    imports: [TypeOrmModule.forFeature([User, Profile, AccessKey])],
+    exports: [UserService]
 })
 export class UserModule {
     configure(consumer: MiddlewareConsumer) {

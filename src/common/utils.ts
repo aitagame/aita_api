@@ -1,4 +1,5 @@
 import { getSchemaPath } from "@nestjs/swagger";
+import { createHash } from "crypto";
 
 export function clearDto(dtoInstance) {
   for (let property in dtoInstance) {
@@ -22,4 +23,11 @@ export function listDtoToSchema<A, B>(listDto: new () => A, itemDto: new () => B
       }
     ]
   }
+}
+
+export function hashPassword(password: string) {
+  return createHash('sha256')
+      .update(`${password}${process.env['PASSWORD_HASH_SALT']}`)
+      .digest()
+      .toString('hex');
 }

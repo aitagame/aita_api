@@ -46,13 +46,18 @@ export class AuthService {
       const details = await account.getAccountDetails();
 
       const accountPublicKeys = details.authorizedApps.filter(app => app.contractId === process.env['CONTRACT_ID']).map(app => app.publicKey);
-      const currentPublicKey = keyPair.getPublicKey().toString();
+      const currentPublicKeyData = keyPair.getPublicKey();
+      if (!currentPublicKeyData) {
+        throw new HttpException('No matching public key found', HttpStatus.UNAUTHORIZED);
+      }
+      const currentPublicKey = currentPublicKeyData.toString();
       if (!accountPublicKeys.includes(currentPublicKey)) {
         throw new HttpException('Specified key not found in user wallet', HttpStatus.UNAUTHORIZED);
       }
 
       return { currentPublicKey, accountPublicKeys };
     } catch (err) {
+      console.error(err);
       throw new HttpException(err.message, HttpStatus.UNAUTHORIZED);
     }
   }
@@ -71,11 +76,12 @@ export class AuthService {
     }
   }
 
-  async createKeyWithUser(userId: number, accessKey: string): Promise<AccessKey> {
+  async createKeyWithUser(userId: number, accessKey: string, publicKey: string): Promise<AccessKey> {
     const createAccessKey = this.accessKeyRepository.create({
       issuer: 'near',
       user_id: userId,
       functional_key: accessKey,
+      public_key: publicKey,
       issued_at: new Date(), //TODO: fix/delete/normal dev
       expire_at: new Date() //TODO: fix/delete/normal dev
     });

@@ -3,6 +3,7 @@ export const ROOMS_LIST = "rooms.list";
 export const ROOMS_GET = "rooms.get";
 export const ROOMS_GET_ID = "rooms.get.id";
 export const ROOMS_CREATE = "rooms.create";
+export const ROOMS_JOIN_OR_CREATE = "rooms.join_or_create";
 export const ROOMS_JOIN = "rooms.join";
 export const ROOMS_LEAVE = "rooms.leave";
 //#endregion

@@ -2,7 +2,7 @@ import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsRes
 import { Server, Socket } from "socket.io";
 import { createHash } from "crypto";
 import { RoomEssentialDto } from "./dto/roomEssential.dto";
-import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX, ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX, ROOMS_STATE_UNEXIST, ROOM_DEFAULT_VOLUME, ROOM_MAX_VOLUME } from "./consts";
+import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX, ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX, ROOMS_STATE_UNEXIST, ROOM_DEFAULT_VOLUME, ROOM_MAX_VOLUME, ROOMS_JOIN_OR_CREATE } from "./consts";
 import { RoomDto } from "./dto/room.dto";
 import { WsGuard } from "../users/guards/ws.guard";
 import { HttpStatus, UseFilters, UseGuards } from "@nestjs/common";
@@ -14,6 +14,7 @@ import { Profile } from "../profiles/profile.model";
 import { getAuthorizedUser } from "../users/guards/utils";
 import ProfileDto from "../profiles/dto/profile.dto";
 import { hashPassword } from "src/common/utils";
+import { v4 as guid } from "uuid";
 
 const roomTemplate = {
     mapId: null,
@@ -199,7 +200,7 @@ export class RoomsEventsGateway {
 
     @UseFilters(new BaseWsExceptionFilter())
     @SubscribeMessage(ROOMS_CREATE)
-    async create(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
+    async create(@MessageBody() data: any, @ConnectedSocket() socket: Socket, verifyRoomName: boolean = true): Promise<WsResponse<RoomDto>> {
         const profile = await this.getProfileByUser(getAuthorizedUser(socket));
         let { mapId, name, volume, mode, password } = data;
         if (!password || password == '') {
@@ -220,15 +221,17 @@ export class RoomsEventsGateway {
         if (volume > ROOM_MAX_VOLUME) {
             throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Max room size exceeded: ${volume} > ${ROOM_MAX_VOLUME}` });
         }
-        if (!name) {
-            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name cannot be undefined` });
-        }
-        name = name.trim();
-        if (!(name.length > MIN_ROOM_NAME_LENGTH && name.length <= MAX_ROOM_NAME_LENGTH)) {
-            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name length out of range (${MIN_ROOM_NAME_LENGTH} - ${MAX_ROOM_NAME_LENGTH})` });
-        }
-        if (!name.match(ROOM_NAME_REGEX)) {
-            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name may contain only space and specified symbols: A-Za-z0-9А-Яа-я_:№"?!-+=*/#@^,.()[]{}<>$%;&` });
+        if (verifyRoomName) {
+            if (!name) {
+                throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name cannot be undefined` });
+            }
+            name = name.trim();
+            if (!(name.length > MIN_ROOM_NAME_LENGTH && name.length <= MAX_ROOM_NAME_LENGTH)) {
+                throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name length out of range (${MIN_ROOM_NAME_LENGTH} - ${MAX_ROOM_NAME_LENGTH})` });
+            }
+            if (!name.match(ROOM_NAME_REGEX)) {
+                throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Room name may contain only space and specified symbols: A-Za-z0-9А-Яа-я_:№"?!-+=*/#@^,.()[]{}<>$%;&` });
+            }
         }
 
         const roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
@@ -271,6 +274,33 @@ export class RoomsEventsGateway {
             throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `User already in room ${ROOM_PREFIX}${roomId}` });
         }
 
+    }
+
+    @UseFilters(new BaseWsExceptionFilter())
+    @SubscribeMessage(ROOMS_JOIN_OR_CREATE)
+    async joinOrCreate(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
+        const user = await getAuthorizedUser(socket);
+        const profile = await this.getProfileByUser(user);
+        let roomId = await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`);
+        if (roomId !== null) {
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Already in room ${roomId}` });
+        }
+
+        const roomsKeys = await this.redisService.keys(`${ROOM_PREFIX}*`);
+        let roomData = null
+        for (let roomKey of roomsKeys) {
+            const currentRoomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
+            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
+            if (parseInt(currentRoomData.volume) < playersCount && !currentRoomData.password) {
+                roomData = currentRoomData;
+                break;
+            }
+        }
+        if (roomData) {
+            return await this.join({ id: roomData.id }, socket);
+        }
+
+        return await this.create({ name: guid() }, socket, false);
     }
 
     private async roomDataToDto(roomId: number, roomData: Record<string, string>, playersCount: number, roomKey: string, user: User) {

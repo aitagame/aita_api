@@ -2,7 +2,12 @@ import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsRes
 import { Server, Socket } from "socket.io";
 import { createHash } from "crypto";
 import { RoomEssentialDto } from "./dto/roomEssential.dto";
-import { ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_USER_STATE_ONLINE, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH, ROOMS_MODE_DEATHMATCH, ROOMS_MODE_TEAM, ROOMS_MODE_CTF, ROOMS_MODE_CTP, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX, ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX, ROOMS_STATE_UNEXIST, ROOM_DEFAULT_VOLUME, ROOM_MAX_VOLUME, ROOMS_JOIN_OR_CREATE } from "./consts";
+import {
+    ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH,
+    ROOMS_MODE_DEATHMATCH, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX,
+    ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX, ROOMS_STATE_UNEXIST, ROOM_DEFAULT_VOLUME, ROOM_MAX_VOLUME, ROOMS_JOIN_OR_CREATE,
+    BROADCAST_ROOMS_CREATED, BROADCAST_ROOMS_CONNECTED, BROADCAST_ROOMS_DISCONNECTED, BROADCAST_ROOMS_STATE_UPDATED, BROADCAST_ROOMS_DELETED
+} from "./consts";
 import { RoomDto } from "./dto/room.dto";
 import { WsGuard } from "../users/guards/ws.guard";
 import { HttpStatus, UseFilters, UseGuards } from "@nestjs/common";
@@ -140,16 +145,16 @@ export class RoomsEventsGateway {
                     this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomKey}`, profile.id.toString());
                     this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomId.toString());
 
-                    console.log(`connecting ${ROOM_PREFIX}${roomKey} ${PROFILE_PREFIX}${profile.id}`);
+                    console.log(`connecting ${roomKey} ${PROFILE_PREFIX}${profile.id}`);
 
-                    this.server.emit('/rooms/connect', `room${roomId}`, user);
+                    this.server.emit(BROADCAST_ROOMS_CONNECTED, roomKey, this.buildProfileDto(profile, null));
 
-                    socket.join(`/${ROOM_PREFIX}${roomId}`);
+                    socket.join(`/${roomKey}`);
 
                     if (playersCount + 1 >= parseInt(roomData.volume)) {
                         roomData.state = ROOMS_STATE_INGAME;
-                        await this.redisService.hSet(`${ROOM_PREFIX}${roomId}`, 'state', roomData.state);
-                        this.server.in(`/${ROOM_PREFIX}${roomId}`).emit('/rooms/state', roomData.state);
+                        await this.redisService.hSet(`${roomKey}`, 'state', roomData.state);
+                        this.server.in(`/${roomKey}`).emit(BROADCAST_ROOMS_STATE_UPDATED, roomData.state);
                     }
 
                     return { event: ROOMS_JOIN, data: await this.roomDataToDto(roomId, roomData, playersCount, roomKey, user) };
@@ -179,13 +184,13 @@ export class RoomsEventsGateway {
             console.log(`leaving ${roomKey}${PROFILE_PREFIX}${profile.id}`);
             await this.redisService.lRem(`${ROOM_PROFILE_PREFIX}${roomId}`, profile.id.toString());
 
-            this.server.emit('/rooms/leave', roomKey, profile.id);
+            this.server.emit(BROADCAST_ROOMS_DISCONNECTED, roomKey, profile.id);
 
             const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
             if (playersCount === 0) {
                 console.log(`removing empty room ${roomKey}`, profile)
                 await this.redisService.del(roomKey);
-                this.server.emit('/rooms/deleted', roomKey);
+                this.server.emit(BROADCAST_ROOMS_DELETED, roomKey);
                 roomData.state = ROOMS_STATE_UNEXIST;
             }
 
@@ -258,13 +263,13 @@ export class RoomsEventsGateway {
             await this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomKey}`, profile.id.toString());
             await this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomLastId.toString());
 
-            this.server.emit('/rooms/create', roomKey, {
+            this.server.emit(BROADCAST_ROOMS_CREATED, roomKey, {
                 name: name,
                 mapId: mapId,
                 mode: mode,
                 password: !!passHash
             });
-            this.server.emit('/rooms/connect', roomKey, profile);
+            this.server.emit(BROADCAST_ROOMS_CONNECTED, roomKey,);
             socket.join(`/${roomKey}`);
 
             return { event: ROOMS_CREATE, data: await this.roomDataToDto(roomLastId, roomData, 1, roomKey, getAuthorizedUser(socket)) };
@@ -331,7 +336,7 @@ export class RoomsEventsGateway {
             name: profile.name,
             class: profile.class,
             rating: profile.gamesWon,
-            is_my: profile.user_id === user.id
+            is_my: user === null ? null : profile.user_id === user.id
         };
     }
 

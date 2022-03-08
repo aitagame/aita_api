@@ -6,6 +6,12 @@ export const ROOMS_CREATE = "rooms.create";
 export const ROOMS_JOIN_OR_CREATE = "rooms.join_or_create";
 export const ROOMS_JOIN = "rooms.join";
 export const ROOMS_LEAVE = "rooms.leave";
+
+export const BROADCAST_ROOMS_CREATED = "broadcast.rooms.created";
+export const BROADCAST_ROOMS_CONNECTED = "broadcast.rooms.connected";
+export const BROADCAST_ROOMS_DISCONNECTED = "broadcast.rooms.disconnected";
+export const BROADCAST_ROOMS_STATE_UPDATED = "broadcast.rooms.state_updated"
+export const BROADCAST_ROOMS_DELETED = "broadcast.rooms.deleted";
 //#endregion
 
 //#region Room states

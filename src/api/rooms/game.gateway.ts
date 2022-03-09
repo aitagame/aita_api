@@ -1,4 +1,4 @@
-import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsResponse, WsException, WebSocketServer } from "@nestjs/websockets";
+import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsException, WebSocketServer } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import {
     PLAYERS_WALK,
@@ -15,7 +15,6 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { getAuthorizedUser } from "../users/guards/utils";
 import { BaseSocketGateway } from "./baseSocket.gateway";
-import { time } from "console";
 
 const MAX_LAG = 500;
 const WALK_DX = 400;
@@ -75,27 +74,32 @@ export class GameEventsGateway extends BaseSocketGateway {
         let playerPositionRawData = await this.redisService.hmGet(roomProfileKey, playerPositionFieldlist);
 
         if (!playerPositionRawData || !playerPositionRawData['id']) {
-            playerPositionRawData = { ...playerPositionTemplate, time: Date.now() }
+            playerPositionRawData = {
+                ...playerPositionTemplate,
+                id: profile.id,
+                time: Date.now()
+            }
         }
         let playerPosition = playerPositionRawData as PlayerPositionDto;
-        playerPosition.x = ~~playerPosition.x;
-        playerPosition.y = ~~playerPosition.y;
+        playerPosition.x = parseFloat((playerPosition.x).toString());
+        playerPosition.y = parseFloat((playerPosition.y).toString());
 
-
-        const dx = ~~(((time - playerPosition.time) * WALK_DX) / 1000);
+        let dx = 0;
+        const dt = (time - playerPosition.time) / 1000;
         switch (key) {
             case KEYS_SUPPORTED.FORWARD:
-                playerPosition.x += dx;
+                dx = WALK_DX;
                 break;
             case KEYS_SUPPORTED.BACKWARD:
-                playerPosition.x -= dx;
+                dx = -WALK_DX;
                 break;
         }
+
+        playerPosition.x += dx * dt;
         if (playerPosition.x < 0) {
             playerPosition.x = 0;
         }
 
-        playerPosition.id = profile.id;
         playerPosition.key = key;
         playerPosition.time = Date.now();
         this.redisService.hmSet(roomProfileKey, playerPosition);
@@ -109,7 +113,7 @@ export class GameEventsGateway extends BaseSocketGateway {
         const now = Date.now();
         if (time && time <= now) {
             if (now - time > MAX_LAG) {
-                time = now + MAX_LAG;
+                time = now - MAX_LAG;
             }
         }
         else {

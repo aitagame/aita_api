@@ -20,6 +20,7 @@ import { getAuthorizedUser } from "../users/guards/utils";
 import ProfileDto from "../profiles/dto/profile.dto";
 import { hashPassword } from "src/common/utils";
 import { v4 as guid } from "uuid";
+import { BaseSocketGateway } from "./baseSocket.gateway";
 
 const roomTemplate = {
     mapId: null,
@@ -38,17 +39,17 @@ const roomFieldlist = Object.keys(roomTemplate);
     }
 })
 @UseGuards(WsGuard)
-export class RoomsEventsGateway {
+export class RoomsEventsGateway extends BaseSocketGateway {
     @WebSocketServer()
     server: Server;
-    private userProfileMapping: Map<number, number> = new Map();
-    private profiles: Map<number, Profile> = new Map();
 
     constructor(
-        private redisService: RedisService,
+        protected redisService: RedisService,
         @InjectRepository(Profile)
-        private profileRepository: Repository<Profile>
-    ) { }
+        protected profileRepository: Repository<Profile>
+    ) {
+        super(redisService, profileRepository);
+    }
 
     @SubscribeMessage(ROOMS_LIST)
     async list(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<Array<RoomEssentialDto>>> {
@@ -71,7 +72,7 @@ export class RoomsEventsGateway {
             const roomKey = roomsKeys.shift();
             const id = roomKey.split(ROOM_PREFIX).pop();
             const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
-            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`)
+            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${id}`)
 
             result.push({
                 id,
@@ -99,7 +100,7 @@ export class RoomsEventsGateway {
         let roomKey = `${ROOM_PREFIX}${roomId}`;
 
         const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
-        const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
+        const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomId}`);
 
         let result: RoomDto = await this.roomDataToDto(roomId, roomData, playersCount, roomKey, user);
 
@@ -135,20 +136,22 @@ export class RoomsEventsGateway {
         if (!currentRoomId) {
             const roomKey = `${ROOM_PREFIX}${roomId}`;
             const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
-            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
+            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomId}`);
 
             if (!roomData.state) {
                 throw new WsException({ status: HttpStatus.NOT_FOUND, message: 'Room does not exist or has invalid state.' });
             }
             else if (roomData.state === ROOMS_STATE_LOBBY) {
                 if (!roomData.password || data.password && roomData.password === hashPassword(data.password)) {
-                    this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomKey}`, profile.id.toString());
+                    this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomId}`, profile.id.toString());
                     this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomId.toString());
 
                     console.log(`connecting ${roomKey} ${PROFILE_PREFIX}${profile.id}`);
 
                     this.server.emit(BROADCAST_ROOMS_CONNECTED, roomKey, this.buildProfileDto(profile, null));
 
+                    socket['profile'] = profile;
+                    socket['roomKey'] = roomKey;
                     socket.join(`/${roomKey}`);
 
                     if (playersCount + 1 >= parseInt(roomData.volume)) {
@@ -186,7 +189,7 @@ export class RoomsEventsGateway {
 
             this.server.emit(BROADCAST_ROOMS_DISCONNECTED, roomKey, profile.id);
 
-            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
+            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomId}`);
             if (playersCount === 0) {
                 console.log(`removing empty room ${roomKey}`, profile)
                 await this.redisService.del(roomKey);
@@ -260,7 +263,7 @@ export class RoomsEventsGateway {
             };
             await this.redisService.hmSet(roomKey, roomData);
 
-            await this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomKey}`, profile.id.toString());
+            await this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomId}`, profile.id.toString());
             await this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomLastId.toString());
 
             this.server.emit(BROADCAST_ROOMS_CREATED, roomKey, {
@@ -270,6 +273,8 @@ export class RoomsEventsGateway {
                 password: !!passHash
             });
             this.server.emit(BROADCAST_ROOMS_CONNECTED, roomKey,);
+            socket['profile'] = profile;
+            socket['roomKey'] = roomKey;
             socket.join(`/${roomKey}`);
 
             return { event: ROOMS_CREATE, data: await this.roomDataToDto(roomLastId, roomData, 1, roomKey, getAuthorizedUser(socket)) };
@@ -295,7 +300,7 @@ export class RoomsEventsGateway {
         let roomData = null
         for (let roomKey of roomsKeys) {
             const currentRoomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
-            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomKey}`);
+            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomId}`);
             if (parseInt(currentRoomData.volume) < playersCount && !currentRoomData.password) {
                 roomData = currentRoomData;
                 break;
@@ -323,7 +328,7 @@ export class RoomsEventsGateway {
             players: [],
         };
 
-        const profileIds = await this.redisService.lRange(`${ROOM_PROFILE_PREFIX}${roomKey}`, 0, playersCount);
+        const profileIds = await this.redisService.lRange(`${ROOM_PROFILE_PREFIX}${roomId}`, 0, playersCount);
         for (let profileId of profileIds) {
             result.players.push(this.buildProfileDto(await this.getProfileById(parseInt(profileId)), user));
         }
@@ -338,42 +343,5 @@ export class RoomsEventsGateway {
             rating: profile.gamesWon,
             is_my: user === null ? null : profile.user_id === user.id
         };
-    }
-
-    //TODO: Find a way to prevent possible inconsistency with 1:1 relation
-    async getProfileByUser(user: User): Promise<Profile> {
-        let profileId = this.userProfileMapping.get(user.id);
-        if (profileId) {
-            return this.getProfileById(profileId);
-        }
-
-        let profile = await this.profileRepository.findOne({ user_id: user.id });
-        if (profile) {
-            return this.cacheProfile(profile);
-        }
-
-        console.error(`Current user profile not found ${user.id}`);
-        throw new WsException({ status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Invalid state' });
-    }
-
-    async getProfileById(profileId: number): Promise<Profile> {
-        let profile = this.profiles.get(profileId);
-        if (profile) {
-            return profile;
-        }
-
-        profile = await this.profileRepository.findOne(profileId);
-        if (profile) {
-            return this.cacheProfile(profile);
-        }
-
-        console.error(`Current profile not found ${profile.id}`);
-        throw new WsException({ status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Invalid state' });
-    }
-
-    async cacheProfile(profile: Profile): Promise<Profile> {
-        this.userProfileMapping.set(profile.user_id, profile.id);
-        this.profiles.set(profile.id, profile);
-        return profile;
     }
 }

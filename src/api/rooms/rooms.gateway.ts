@@ -150,8 +150,6 @@ export class RoomsEventsGateway extends BaseSocketGateway {
 
                     this.server.emit(BROADCAST_ROOMS_CONNECTED, roomKey, this.buildProfileDto(profile, null));
 
-                    socket['profile'] = profile;
-                    socket['roomKey'] = roomKey;
                     socket.join(`/${roomKey}`);
 
                     if (playersCount + 1 >= parseInt(roomData.volume)) {
@@ -273,8 +271,6 @@ export class RoomsEventsGateway extends BaseSocketGateway {
                 password: !!passHash
             });
             this.server.emit(BROADCAST_ROOMS_CONNECTED, roomKey,);
-            socket['profile'] = profile;
-            socket['roomKey'] = roomKey;
             socket.join(`/${roomKey}`);
 
             return { event: ROOMS_CREATE, data: await this.roomDataToDto(roomLastId, roomData, 1, roomKey, getAuthorizedUser(socket)) };

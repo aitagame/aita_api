@@ -12,6 +12,10 @@ export const BROADCAST_ROOMS_CONNECTED = "broadcast.rooms.connected";
 export const BROADCAST_ROOMS_DISCONNECTED = "broadcast.rooms.disconnected";
 export const BROADCAST_ROOMS_STATE_UPDATED = "broadcast.rooms.state_updated"
 export const BROADCAST_ROOMS_DELETED = "broadcast.rooms.deleted";
+
+export const PLAYERS_WALK = "players.walk";
+export const PLAYERS_JUMP = "players.jump";
+export const PLAYERS_SHOT = "players.shot";
 //#endregion
 
 //#region Room states
@@ -44,6 +48,7 @@ export const ROOM_NAME_PREFIX = 'rn_';
 
 export const ROOM_PROFILE_PREFIX = 'RP_';
 export const PROFILE_ROOM_PREFIX = 'PR_';
+export const PROFILE_POSITION_PREFIX = 'PP_';
 
 export const ROOM_NAME_REGEX = /[A-Za-z0-9А-Яа-я\ \_\:\№\"\?\!\-\+\=\*\/\#\@\^\,\.\(\)\[\]\{\}\<\>\$\%\;\&]*/;
 export const ROOM_DEFAULT_VOLUME = 10;

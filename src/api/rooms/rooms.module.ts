@@ -4,10 +4,11 @@ import RedisModule from "src/storage/redis/redis.module";
 import { Profile } from "../profiles/profile.model";
 import { User } from "../users/user.model";
 import { UserModule } from "../users/user.module";
+import { GameEventsGateway } from "./game.gateway";
 import { RoomsEventsGateway } from "./rooms.gateway";
 
 @Module({
   imports: [UserModule, TypeOrmModule.forFeature([User, Profile]), RedisModule],
-  providers: [RoomsEventsGateway]
+  providers: [RoomsEventsGateway, GameEventsGateway]
 })
 export class RoomsModule { };

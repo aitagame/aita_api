@@ -1,14 +1,13 @@
 import { Body, Controller, Get, HttpStatus, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiResponse, ApiTags, ApiParam, ApiSecurity, ApiQuery, ApiExtraModels } from "@nestjs/swagger";
-import { isNumber } from "class-validator";
 import { DEFAULT_LIMIT } from "src/common/consts";
-import { ListCriteriaDto } from "src/common/dto/listCriteria.dto";
 import { ListResponseDto } from "src/common/dto/listResponse.dto";
 import { listDtoToSchema } from "src/common/utils";
 import { UserDecorator } from "../users/decorators/user.decorator";
 import { AuthGuard } from "../users/guards/auth.guard";
 import { User } from "../users/user.model";
 import ProfileDto from "./dto/profile.dto";
+import { ProfileCriteriaDto } from "./dto/profileCriteria.dto";
 import { Profile } from "./profile.model";
 import { ProfileService } from "./profile.service";
 
@@ -53,8 +52,8 @@ export class ProfilesController {
   @ApiResponse({ schema: listDtoToSchema(ListResponseDto, ProfileDto), status: HttpStatus.OK, description: "Profile list built" })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: "Invalid criteria" })
   @UseGuards(AuthGuard)
-  @ApiExtraModels(ListCriteriaDto, ListResponseDto, ProfileDto)
-  async listProfiles(@Query() criteria: ListCriteriaDto, @UserDecorator() user: User): Promise<ListResponseDto<ProfileDto>> {
+  @ApiExtraModels(ProfileCriteriaDto, ListResponseDto, ProfileDto)
+  async listProfiles(@Query() criteria: ProfileCriteriaDto, @UserDecorator() user: User): Promise<ListResponseDto<ProfileDto>> {
     const [profilesData, count] = await this.profileService.listProfiles(criteria);
     return { data: this.buildProfileDtoList(profilesData, user), count };
   }

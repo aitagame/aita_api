@@ -1,13 +1,13 @@
 import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import * as assert from "assert";
-import { MAX_LIMIT, SORT_DIRECTIONS } from "src/common/consts";
-import { ListCriteriaDto } from "src/common/dto/listCriteria.dto";
+import { DEFAULT_LIMIT, MAX_LIMIT, SORT_DIRECTIONS } from "src/common/consts";
 import { clearDto } from "src/common/utils";
 import { Repository } from "typeorm";
 import { User } from "../users/user.model";
 import { PROFILE_CLASSES } from "./consts";
 import ProfileDto from "./dto/profile.dto";
+import { ProfileCriteriaDto } from "./dto/profileCriteria.dto";
 import { Profile } from "./profile.model";
 
 @Injectable()
@@ -44,12 +44,16 @@ export class ProfileService {
     return profile
   }
 
-  async listProfiles({ limit, direction }: ListCriteriaDto): Promise<[Array<Profile>, number]> {
+  async listProfiles({ limit = DEFAULT_LIMIT, direction = "ASC", user_id }: ProfileCriteriaDto): Promise<[Array<Profile>, number]> {
     assert(limit < MAX_LIMIT, new HttpException(`Limit should not exceed ${MAX_LIMIT}`, HttpStatus.BAD_REQUEST));
     assert(SORT_DIRECTIONS.includes(direction), new HttpException(`Direction should be one of ${SORT_DIRECTIONS.join()}`, HttpStatus.BAD_REQUEST));
 
-    return await this.profileRepository
-      .createQueryBuilder()
+    const queryBuilder = this.profileRepository.createQueryBuilder()
+    if (user_id) {
+      queryBuilder.where({ user_id });
+    }
+
+    return await queryBuilder
       .orderBy("gamesWon", "DESC")
       .limit()
       .getManyAndCount();

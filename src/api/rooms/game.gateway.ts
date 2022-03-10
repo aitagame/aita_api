@@ -111,14 +111,6 @@ export class GameEventsGateway extends BaseSocketGateway {
 
     private verifyTime(time: number): number {
         const now = Date.now();
-        if (time && time <= now) {
-            if (now - time > MAX_LAG) {
-                time = now - MAX_LAG;
-            }
-        }
-        else {
-            time = now;
-        }
-        return time;
+        return time ? Math.min(Math.max(now - MAX_LAG, time), now) : now;
     }
 }

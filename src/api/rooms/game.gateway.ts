@@ -62,6 +62,7 @@ export class GameEventsGateway extends BaseSocketGateway {
         const roomProfileKey = `${ROOM_PROFILE_POSITION_PREFIX}${roomKey}_${profileKey}`;
         let playerPositionRawData = await this.redisService.hmGet(roomProfileKey, PLAYER_POSITION_FIELD_LIST);
         let playerPosition = playerPositionRawData as PlayerPositionDto;
+        playerPosition.id = parseInt(playerPosition.id.toString());
         playerPosition.x = parseFloat((playerPosition.x).toString());
         playerPosition.y = parseFloat((playerPosition.y).toString());
 

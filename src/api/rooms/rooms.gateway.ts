@@ -157,7 +157,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
                     if (playersCount + 1 >= parseInt(roomData.volume)) {
                         roomData.state = ROOMS_STATE_INGAME;
                         await this.redisService.hSet(`${roomKey}`, 'state', roomData.state);
-                        this.server.in(`/${roomKey}`).emit(BROADCAST_ROOMS_STATE_UPDATED, roomId, roomData.state);
+                        this.server.emit(BROADCAST_ROOMS_STATE_UPDATED, roomId, roomData.state);
                     }
 
                     return { event: ROOMS_JOIN, data: await this.roomDataToDto(roomId, roomData, playersCount, user) };
@@ -186,6 +186,10 @@ export class RoomsEventsGateway extends BaseSocketGateway {
 
             console.log(`leaving ${roomKey}${PROFILE_PREFIX}${profile.id}`);
             await this.redisService.lRem(`${ROOM_PROFILE_PREFIX}${roomId}`, profile.id.toString());
+
+            const profileKey = `${PROFILE_POSITION_PREFIX}${profile.id}`;
+            const roomProfileKey = `${ROOM_PROFILE_POSITION_PREFIX}${roomKey}_${profileKey}`;
+            await this.redisService.del(roomProfileKey);
 
             this.server.emit(BROADCAST_ROOMS_DISCONNECTED, roomId, profile.id);
 

@@ -150,7 +150,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
 
                     console.log(`connecting ${roomKey} ${PROFILE_PREFIX}${profile.id}`);
 
-                    this.server.emit(BROADCAST_ROOMS_CONNECTED, roomId, await this.buildProfileDto(roomKey, profile, user));
+                    this.server.emit(BROADCAST_ROOMS_CONNECTED, roomId, await this.buildProfileDto(roomKey, profile, null));
 
                     socket.join(`/${roomKey}`);
 

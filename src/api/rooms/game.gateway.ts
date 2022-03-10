@@ -6,7 +6,8 @@ import {
     PLAYER_POSITION_TEMPLATE,
     PROFILE_POSITION_PREFIX,
     PROFILE_ROOM_PREFIX,
-    ROOM_PREFIX
+    ROOM_PREFIX,
+    ROOM_PROFILE_POSITION_PREFIX
 } from "./consts";
 import { WsGuard } from "../users/guards/ws.guard";
 import { HttpStatus, UseGuards } from "@nestjs/common";
@@ -62,7 +63,7 @@ export class GameEventsGateway extends BaseSocketGateway {
         time = this.verifyTime(time);
 
         const profileKey = `${PROFILE_POSITION_PREFIX}${profile.id}`;
-        const roomProfileKey = `${roomKey}_${profileKey}`;
+        const roomProfileKey = `${ROOM_PROFILE_POSITION_PREFIX}${roomKey}_${profileKey}`;
         let playerPositionRawData = await this.redisService.hmGet(roomProfileKey, PLAYER_POSITION_FIELD_LIST);
         let playerPosition = playerPositionRawData as PlayerPositionDto;
         playerPosition.x = parseFloat((playerPosition.x).toString());

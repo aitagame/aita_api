@@ -49,6 +49,7 @@ export const ROOM_NAME_PREFIX = 'rn_';
 export const ROOM_PROFILE_PREFIX = 'RP_';
 export const PROFILE_ROOM_PREFIX = 'PR_';
 export const PROFILE_POSITION_PREFIX = 'PP_';
+export const ROOM_PROFILE_POSITION_PREFIX = 'RPP_';
 
 export const ROOM_NAME_REGEX = /[A-Za-z0-9А-Яа-я\ \_\:\№\"\?\!\-\+\=\*\/\#\@\^\,\.\(\)\[\]\{\}\<\>\$\%\;\&]*/;
 export const ROOM_DEFAULT_VOLUME = 10;

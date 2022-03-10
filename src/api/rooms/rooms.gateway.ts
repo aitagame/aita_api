@@ -346,6 +346,10 @@ export class RoomsEventsGateway extends BaseSocketGateway {
         const profileKey = `${PROFILE_POSITION_PREFIX}${profile.id}`;
         const roomProfileKey = `${roomKey}_${profileKey}`;
         let playerPositionRawData = await this.redisService.hmGet(roomProfileKey, PLAYER_POSITION_FIELD_LIST);
+        let playerPosition = playerPositionRawData as PlayerPositionDto;
+        //TODO: Encapsulate
+        playerPosition.x = parseFloat((playerPosition.x).toString());
+        playerPosition.y = parseFloat((playerPosition.y).toString());
 
         return {
             id: profile.id,
@@ -353,7 +357,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
             class: profile.class,
             rating: profile.gamesWon,
             is_my: user === null ? null : profile.user_id === user.id,
-            position: playerPositionRawData as PlayerPositionDto
+            position: playerPosition
         };
     }
 
@@ -365,6 +369,10 @@ export class RoomsEventsGateway extends BaseSocketGateway {
             id: profile.id,
             time: Date.now()
         };
+        //TODO: Implement via map
+        playerPosition.x = Math.random() * 1140 + 80;
+        playerPosition.y = 0;
+
         await this.redisService.hmSet(roomProfileKey, playerPosition);
     }
 }

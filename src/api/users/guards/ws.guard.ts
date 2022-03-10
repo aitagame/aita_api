@@ -13,8 +13,8 @@ export class WsGuard implements CanActivate {
         if (isUserAuthorized(client)) {
             return true;
         }
-        if (client.handshake.headers.authorization) {
-            const token = client.handshake.headers.authorization;
+        const token = client.handshake.auth.authorization || client.handshake.headers.authorization;
+        if (token) {
             const decode = verify(token, process.env['JWT_SECRET']);
             if (!decode) {
                 return failUnauthorized(client);

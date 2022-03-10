@@ -6,7 +6,7 @@ import {
     ROOMS_LIST, ROOMS_LEAVE, ROOMS_JOIN, ROOMS_GET, ROOMS_GET_ID, ROOMS_CREATE, ROOMS_STATE_LOBBY, ROOMS_STATE_INGAME, MAX_PASSWORD_LENGTH,
     ROOMS_MODE_DEATHMATCH, ROOMS_TYPES, MAX_ROOM_NAME_LENGTH, MIN_ROOM_NAME_LENGTH, ROOM_NAME_REGEX, PROFILE_PREFIX, ROOM_PREFIX, ROOM_NAME_PREFIX,
     ROOM_PROFILE_PREFIX, PROFILE_ROOM_PREFIX, ROOMS_STATE_UNEXIST, ROOM_DEFAULT_VOLUME, ROOM_MAX_VOLUME, ROOMS_JOIN_OR_CREATE,
-    BROADCAST_ROOMS_CREATED, BROADCAST_ROOMS_CONNECTED, BROADCAST_ROOMS_DISCONNECTED, BROADCAST_ROOMS_STATE_UPDATED, BROADCAST_ROOMS_DELETED, PLAYER_POSITION_TEMPLATE, PROFILE_POSITION_PREFIX, PLAYERS_WALK, PLAYER_POSITION_FIELD_LIST
+    BROADCAST_ROOMS_CREATED, BROADCAST_ROOMS_CONNECTED, BROADCAST_ROOMS_DISCONNECTED, BROADCAST_ROOMS_STATE_UPDATED, BROADCAST_ROOMS_DELETED, PLAYER_POSITION_TEMPLATE, PROFILE_POSITION_PREFIX, PLAYERS_WALK, PLAYER_POSITION_FIELD_LIST, ROOM_PROFILE_POSITION_PREFIX
 } from "./consts";
 import { RoomDto } from "./dto/room.dto";
 import { WsGuard } from "../users/guards/ws.guard";
@@ -346,7 +346,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
 
     async buildProfileDto(roomKey: string, profile: Profile, user: User): Promise<ProfileDto> {
         const profileKey = `${PROFILE_POSITION_PREFIX}${profile.id}`;
-        const roomProfileKey = `${roomKey}_${profileKey}`;
+        const roomProfileKey = `${ROOM_PROFILE_POSITION_PREFIX}${roomKey}_${profileKey}`;
         let playerPositionRawData = await this.redisService.hmGet(roomProfileKey, PLAYER_POSITION_FIELD_LIST);
         let playerPosition = playerPositionRawData as PlayerPositionDto;
         //TODO: Encapsulate
@@ -365,7 +365,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
 
     private async initProfilePlayerPosition(roomKey: string, profile: Profile): Promise<void> {
         const profileKey = `${PROFILE_POSITION_PREFIX}${profile.id}`;
-        const roomProfileKey = `${roomKey}_${profileKey}`;
+        const roomProfileKey = `${ROOM_PROFILE_POSITION_PREFIX}${roomKey}_${profileKey}`;
         const playerPosition = {
             ...PLAYER_POSITION_TEMPLATE,
             id: profile.id,

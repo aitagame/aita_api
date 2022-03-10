@@ -150,14 +150,14 @@ export class RoomsEventsGateway extends BaseSocketGateway {
 
                     console.log(`connecting ${roomKey} ${PROFILE_PREFIX}${profile.id}`);
 
-                    this.server.emit(BROADCAST_ROOMS_CONNECTED, roomKey, await this.buildProfileDto(roomKey, profile, user));
+                    this.server.emit(BROADCAST_ROOMS_CONNECTED, roomId, await this.buildProfileDto(roomKey, profile, user));
 
                     socket.join(`/${roomKey}`);
 
                     if (playersCount + 1 >= parseInt(roomData.volume)) {
                         roomData.state = ROOMS_STATE_INGAME;
                         await this.redisService.hSet(`${roomKey}`, 'state', roomData.state);
-                        this.server.in(`/${roomKey}`).emit(BROADCAST_ROOMS_STATE_UPDATED, roomData.state);
+                        this.server.in(`/${roomKey}`).emit(BROADCAST_ROOMS_STATE_UPDATED, roomId, roomData.state);
                     }
 
                     return { event: ROOMS_JOIN, data: await this.roomDataToDto(roomId, roomData, playersCount, user) };
@@ -187,13 +187,13 @@ export class RoomsEventsGateway extends BaseSocketGateway {
             console.log(`leaving ${roomKey}${PROFILE_PREFIX}${profile.id}`);
             await this.redisService.lRem(`${ROOM_PROFILE_PREFIX}${roomId}`, profile.id.toString());
 
-            this.server.emit(BROADCAST_ROOMS_DISCONNECTED, roomKey, profile.id);
+            this.server.emit(BROADCAST_ROOMS_DISCONNECTED, roomId, profile.id);
 
             const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomId}`);
             if (playersCount === 0) {
                 console.log(`removing empty room ${roomKey}`, profile)
                 await this.redisService.del(roomKey);
-                this.server.emit(BROADCAST_ROOMS_DELETED, roomKey);
+                this.server.emit(BROADCAST_ROOMS_DELETED, roomId);
                 roomData.state = ROOMS_STATE_UNEXIST;
             }
 
@@ -209,7 +209,8 @@ export class RoomsEventsGateway extends BaseSocketGateway {
     @UseFilters(new BaseWsExceptionFilter())
     @SubscribeMessage(ROOMS_CREATE)
     async create(@MessageBody() data: any, @ConnectedSocket() socket: Socket, verifyRoomName: boolean = true): Promise<WsResponse<RoomDto>> {
-        const profile = await this.getProfileByUser(getAuthorizedUser(socket));
+        const user = getAuthorizedUser(socket);
+        const profile = await this.getProfileByUser(user);
         let { mapId, name, volume, mode, password } = data;
         if (!password || password == '') {
             password = null;
@@ -267,13 +268,14 @@ export class RoomsEventsGateway extends BaseSocketGateway {
             await this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomLastId.toString());
             this.initProfilePlayerPosition(roomKey, profile);
 
-            this.server.emit(BROADCAST_ROOMS_CREATED, roomKey, {
+            this.server.emit(BROADCAST_ROOMS_CREATED, roomId, {
+                id: roomId,
                 name: name,
                 mapId: mapId,
                 mode: mode,
-                password: !!passHash
+                isLocked: !!passHash
             });
-            this.server.emit(BROADCAST_ROOMS_CONNECTED, roomKey,);
+            this.server.emit(BROADCAST_ROOMS_CONNECTED, roomId, this.buildProfileDto(roomKey, profile, user));
             socket.join(`/${roomKey}`);
 
             return { event: ROOMS_CREATE, data: await this.roomDataToDto(roomLastId, roomData, 1, getAuthorizedUser(socket)) };

@@ -178,7 +178,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
     async leave(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomEssentialDto>> {
         const profile = await this.getProfileByUser(getAuthorizedUser(socket));
         const roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
-        if (isNaN(roomId)) {
+        if (!isNaN(roomId)) {
             const roomKey = `${ROOM_PREFIX}${roomId}`;
             const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
 

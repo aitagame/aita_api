@@ -87,10 +87,10 @@ export class GameEventsGateway extends BaseSocketGateway {
         let dx = 0;
         const dt = (time - playerPosition.time) / 1000;
         switch (key) {
-            case KEYS_SUPPORTED.FORWARD:
+            case KEYS_SUPPORTED.RIGHT:
                 dx = WALK_DX;
                 break;
-            case KEYS_SUPPORTED.BACKWARD:
+            case KEYS_SUPPORTED.LEFT:
                 dx = -WALK_DX;
                 break;
         }

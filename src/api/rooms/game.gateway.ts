@@ -2,6 +2,8 @@ import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsExc
 import { Server, Socket } from "socket.io";
 import {
     PLAYERS_WALK,
+    PLAYER_POSITION_FIELD_LIST,
+    PLAYER_POSITION_TEMPLATE,
     PROFILE_POSITION_PREFIX,
     PROFILE_ROOM_PREFIX,
     ROOM_PREFIX
@@ -18,6 +20,8 @@ import { BaseSocketGateway } from "./baseSocket.gateway";
 
 const MAX_LAG = 500;
 const WALK_DX = 400;
+const FREEFALL_ACCELERATION = 900;
+const MAX_FALL_SPEED = 1350;
 
 const KEYS_SUPPORTED = {
     FORWARD: 'w',
@@ -25,18 +29,6 @@ const KEYS_SUPPORTED = {
     LEFT: 'a',
     RIGHT: 'd'
 }
-
-const playerPositionTemplate = {
-    id: null,
-    key: null,
-    //TODO: Replace with random based on platform locations
-    x: 800,
-    y: 400,
-    time: null
-}
-const playerPositionFieldlist = Object.keys(playerPositionTemplate);
-
-
 @WebSocketGateway({
     cors: {
         origin: "*"
@@ -71,15 +63,7 @@ export class GameEventsGateway extends BaseSocketGateway {
 
         const profileKey = `${PROFILE_POSITION_PREFIX}${profile.id}`;
         const roomProfileKey = `${roomKey}_${profileKey}`;
-        let playerPositionRawData = await this.redisService.hmGet(roomProfileKey, playerPositionFieldlist);
-
-        if (!playerPositionRawData || !playerPositionRawData['id']) {
-            playerPositionRawData = {
-                ...playerPositionTemplate,
-                id: profile.id,
-                time: Date.now()
-            }
-        }
+        let playerPositionRawData = await this.redisService.hmGet(roomProfileKey, PLAYER_POSITION_FIELD_LIST);
         let playerPosition = playerPositionRawData as PlayerPositionDto;
         playerPosition.x = parseFloat((playerPosition.x).toString());
         playerPosition.y = parseFloat((playerPosition.y).toString());
@@ -102,7 +86,7 @@ export class GameEventsGateway extends BaseSocketGateway {
 
         playerPosition.key = key;
         playerPosition.time = Date.now();
-        this.redisService.hmSet(roomProfileKey, playerPosition);
+        await this.redisService.hmSet(roomProfileKey, playerPosition);
         if (!socket.rooms.has(roomKey)) {
             socket.join(`/${roomKey}`);
         }

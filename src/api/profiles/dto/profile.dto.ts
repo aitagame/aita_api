@@ -1,4 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { PlayerPositionDto } from "src/api/rooms/dto/playerPosition.dto";
 import { PROFILE_CLASSES } from "../consts";
 
 export default class ProfileDto {
@@ -12,4 +13,7 @@ export default class ProfileDto {
   rating: number;
   @ApiProperty({ description: "Does profile belong to the current user" })
   is_my: boolean;
+
+  @ApiProperty({ description: "In-game player position" })
+  position?: PlayerPositionDto
 }

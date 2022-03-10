@@ -24,6 +24,7 @@ import { BaseSocketGateway } from "./baseSocket.gateway";
 import { PlayerPositionDto } from "./dto/playerPosition.dto";
 
 const roomTemplate = {
+    id: null,
     mapId: null,
     name: null,
     volume: null,
@@ -125,7 +126,6 @@ export class RoomsEventsGateway extends BaseSocketGateway {
         if (!data.id) {
             throw new WsException({ status: HttpStatus.BAD_REQUEST, message: 'Room ID should be specified' });
         }
-
         data.id = data.id.toString().replace(/\*/g, '');
         let roomKey = `${ROOM_PREFIX}${data.id}`;
 
@@ -156,7 +156,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
 
                     if (playersCount + 1 >= parseInt(roomData.volume)) {
                         roomData.state = ROOMS_STATE_INGAME;
-                        await this.redisService.hSet(`${roomKey}`, 'state', roomData.state);
+                        await this.redisService.hSet(roomKey, 'state', roomData.state);
                         this.server.emit(BROADCAST_ROOMS_STATE_UPDATED, roomId, roomData.state);
                     }
 
@@ -296,18 +296,20 @@ export class RoomsEventsGateway extends BaseSocketGateway {
     async joinOrCreate(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
         const user = await getAuthorizedUser(socket);
         const profile = await this.getProfileByUser(user);
-        let roomId = await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`);
-        if (roomId !== null) {
+        let roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
+        if (!isNaN(roomId)) {
             throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Already in room ${roomId}` });
         }
 
         const roomsKeys = await this.redisService.keys(`${ROOM_PREFIX}*`);
-        let roomData = null
+        let roomData = null;
         let roomKey = null;
         for (let currentRoomKey of roomsKeys) {
             const currentRoomData = (await this.redisService.hmGet(currentRoomKey, roomFieldlist)) as Record<string, string>;
-            const playersCount = await this.redisService.lLen(currentRoomKey);
-            if (parseInt(currentRoomData.volume) < playersCount && !currentRoomData.password) {
+            roomId = parseInt(currentRoomData.id);
+            const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomId}`);
+
+            if (parseInt(currentRoomData.volume) > playersCount && !currentRoomData.password) {
                 roomData = currentRoomData;
                 roomKey = currentRoomKey;
                 break;
@@ -319,9 +321,10 @@ export class RoomsEventsGateway extends BaseSocketGateway {
         else {
             const { data } = await this.create({ name: guid() }, socket, false);
             roomData = data;
+            roomId = data.id;
         }
 
-        const playersCount = await this.redisService.lLen(roomKey);
+        const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomId}`);
         return { event: ROOMS_JOIN_OR_CREATE, data: await this.roomDataToDto(roomData.id, roomData, playersCount, user) };
     }
 

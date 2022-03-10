@@ -56,3 +56,14 @@ export const ROOM_MAX_VOLUME = 100;
 export const MIN_ROOM_NAME_LENGTH = 0;
 export const MAX_ROOM_NAME_LENGTH = 20;
 export const MAX_PASSWORD_LENGTH = 20;
+
+
+export const PLAYER_POSITION_TEMPLATE = {
+    id: null,
+    key: null,
+    //TODO: Replace with random based on platform locations
+    x: 800,
+    y: 400,
+    time: null
+}
+export const PLAYER_POSITION_FIELD_LIST = Object.keys(PLAYER_POSITION_TEMPLATE);

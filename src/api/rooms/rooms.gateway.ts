@@ -133,7 +133,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
             throw new WsException({ status: HttpStatus.NOT_FOUND, message: 'Room not found' });
         }
 
-        if (!currentRoomId) {
+        if (isNaN(currentRoomId)) {
             const roomKey = `${ROOM_PREFIX}${roomId}`;
             const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
             const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomId}`);
@@ -178,7 +178,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
     async leave(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomEssentialDto>> {
         const profile = await this.getProfileByUser(getAuthorizedUser(socket));
         const roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
-        if (roomId) {
+        if (isNaN(roomId)) {
             const roomKey = `${ROOM_PREFIX}${roomId}`;
             const roomData = (await this.redisService.hmGet(roomKey, roomFieldlist)) as Record<string, string>;
 
@@ -241,7 +241,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
         }
 
         const roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
-        if (!roomId) {
+        if (isNaN(roomId)) {
             //Autoincrement :D . Consider replacing with uuidv4 if reasonable
             const roomLastId = await this.redisService.incr('roomLastId');
             const roomKey = `${ROOM_PREFIX}${roomLastId}`;

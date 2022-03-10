@@ -1,7 +1,7 @@
 export class PlayerPositionDto {
   id: number;
 
-  key: string;
+  keys: string[];
 
   x: number;
 

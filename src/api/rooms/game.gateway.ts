@@ -100,9 +100,9 @@ export class GameEventsGateway extends BaseSocketGateway {
             socket.join(`/${roomKey}`);
         }
 
-        this.server.in(`/${roomKey}`).emit(BROADCAST_PLAYER_MOVE, { ...playerPosition, keys: playerPosition.keys.toString().split(',') });
+        this.server.in(`/${roomKey}`).emit(BROADCAST_PLAYER_MOVE, { ...playerPosition, keys: keys.toString().split(',') });
 
-        return { event: PLAYERS_MOVE, data: { ...playerPosition, keys: playerPosition.keys.toString().split(',') } };
+        return { event: PLAYERS_MOVE, data: { ...playerPosition, keys: keys.toString().split(',') } };
     }
 
     private verifyTime(time: number): number {

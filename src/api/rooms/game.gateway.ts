@@ -95,13 +95,14 @@ export class GameEventsGateway extends BaseSocketGateway {
 
         playerPosition.time = Date.now();
         await this.redisService.hmSet(roomProfileKey, { ...playerPosition, keys: keys.join() });
+
         if (!socket.rooms.has(roomKey)) {
             socket.join(`/${roomKey}`);
         }
 
-        this.server.in(`/${roomKey}`).emit(BROADCAST_PLAYER_MOVE, playerPosition);
+        this.server.in(`/${roomKey}`).emit(BROADCAST_PLAYER_MOVE, { ...playerPosition, keys: playerPosition.keys.toString().split(',') });
 
-        return { event: PLAYERS_MOVE, data: playerPosition };
+        return { event: PLAYERS_MOVE, data: { ...playerPosition, keys: playerPosition.keys.toString().split(',') } };
     }
 
     private verifyTime(time: number): number {

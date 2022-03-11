@@ -1,7 +1,8 @@
-import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsException, WebSocketServer } from "@nestjs/websockets";
+import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsException, WebSocketServer, WsResponse } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import {
-    PLAYERS_WALK,
+    BROADCAST_PLAYER_MOVE,
+    PLAYERS_MOVE,
     PLAYER_POSITION_FIELD_LIST,
     PLAYER_POSITION_TEMPLATE,
     PROFILE_POSITION_PREFIX,
@@ -48,36 +49,43 @@ export class GameEventsGateway extends BaseSocketGateway {
         super(redisService, profileRepository);
     }
 
-    @SubscribeMessage(PLAYERS_WALK)
-    async walk(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<void> {
+    @SubscribeMessage(PLAYERS_MOVE)
+    async walk(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<PlayerPositionDto>> {
+        let { keys = [], time = null } = data;
+
         const user = getAuthorizedUser(socket);
         const profile = await this.getProfileByUser(user);
         const roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
         const roomKey = `${ROOM_PREFIX}${roomId}`;
 
-        let { key = null, time = null } = data;
-        if (key && !Object.values(KEYS_SUPPORTED).includes(key)) {
-            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Key "${key}" not supported` });
-        }
-
-        time = this.verifyTime(time);
-
         const profileKey = `${PROFILE_POSITION_PREFIX}${profile.id}`;
         const roomProfileKey = `${ROOM_PROFILE_POSITION_PREFIX}${roomKey}_${profileKey}`;
         let playerPositionRawData = await this.redisService.hmGet(roomProfileKey, PLAYER_POSITION_FIELD_LIST);
         let playerPosition = playerPositionRawData as PlayerPositionDto;
+        playerPosition.id = parseInt(playerPosition.id.toString());
         playerPosition.x = parseFloat((playerPosition.x).toString());
         playerPosition.y = parseFloat((playerPosition.y).toString());
 
+        time = this.verifyTime(time);
+
+        keys = Array.from(new Set(keys));
+
         let dx = 0;
         const dt = (time - playerPosition.time) / 1000;
-        switch (key) {
-            case KEYS_SUPPORTED.RIGHT:
-                dx = WALK_DX;
-                break;
-            case KEYS_SUPPORTED.LEFT:
-                dx = -WALK_DX;
-                break;
+
+        for (let key of keys) {
+            // if (key && !Object.values(KEYS_SUPPORTED).includes(key)) {
+            //     throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Key "${key}" not supported` });
+            // }
+
+            switch (key) {
+                case KEYS_SUPPORTED.RIGHT:
+                    dx += WALK_DX;
+                    break;
+                case KEYS_SUPPORTED.LEFT:
+                    dx -= WALK_DX;
+                    break;
+            }
         }
 
         playerPosition.x += dx * dt;
@@ -85,13 +93,15 @@ export class GameEventsGateway extends BaseSocketGateway {
             playerPosition.x = 0;
         }
 
-        playerPosition.key = key;
         playerPosition.time = Date.now();
-        await this.redisService.hmSet(roomProfileKey, playerPosition);
+        await this.redisService.hmSet(roomProfileKey, { ...playerPosition, keys: keys.join() });
         if (!socket.rooms.has(roomKey)) {
             socket.join(`/${roomKey}`);
         }
-        this.server.in(`/${roomKey}`).emit(PLAYERS_WALK, playerPosition);
+
+        this.server.in(`/${roomKey}`).emit(BROADCAST_PLAYER_MOVE, playerPosition);
+
+        return { event: PLAYERS_MOVE, data: playerPosition };
     }
 
     private verifyTime(time: number): number {

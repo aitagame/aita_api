@@ -13,9 +13,10 @@ export const BROADCAST_ROOMS_DISCONNECTED = "broadcast.rooms.disconnected";
 export const BROADCAST_ROOMS_STATE_UPDATED = "broadcast.rooms.state_updated"
 export const BROADCAST_ROOMS_DELETED = "broadcast.rooms.deleted";
 
-export const PLAYERS_WALK = "players.walk";
-export const PLAYERS_JUMP = "players.jump";
+export const PLAYERS_MOVE = "players.move";
 export const PLAYERS_SHOT = "players.shot";
+
+export const BROADCAST_PLAYER_MOVE = "broadcast.players.move";
 //#endregion
 
 //#region Room states
@@ -61,7 +62,7 @@ export const MAX_PASSWORD_LENGTH = 20;
 
 export const PLAYER_POSITION_TEMPLATE = {
     id: null,
-    key: null,
+    keys: [],
     //TODO: Replace with random based on platform locations
     x: 800,
     y: 400,

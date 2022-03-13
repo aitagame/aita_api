@@ -62,6 +62,10 @@ export class GameEventsGateway extends BaseSocketGateway {
         const roomProfileKey = `${ROOM_PROFILE_POSITION_PREFIX}${roomKey}_${profileKey}`;
         let playerPositionRawData = await this.redisService.hmGet(roomProfileKey, PLAYER_POSITION_FIELD_LIST);
         let playerPosition = playerPositionRawData as PlayerPositionDto;
+        if (profile.id && !playerPosition.id) {
+            throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Invalid state. Profile ${profile.id} appears to be not in room ${roomId}` });
+        }
+
         playerPosition.id = parseInt(playerPosition.id.toString());
         playerPosition.x = parseFloat((playerPosition.x).toString());
         playerPosition.y = parseFloat((playerPosition.y).toString());

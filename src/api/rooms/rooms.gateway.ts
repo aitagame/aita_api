@@ -294,8 +294,8 @@ export class RoomsEventsGateway extends BaseSocketGateway {
 
     @UseFilters(new BaseWsExceptionFilter())
     @SubscribeMessage(ROOMS_JOIN_OR_CREATE)
-    async joinOrCreate(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
-        const user = await getAuthorizedUser(socket);
+    async joinOrCreate(@ConnectedSocket() socket: Socket): Promise<WsResponse<RoomDto>> {
+        const user = getAuthorizedUser(socket);
         const profile = await this.getProfileByUser(user);
         let roomId = parseInt(await this.redisService.get(`${PROFILE_ROOM_PREFIX}${profile.id}`));
         if (!isNaN(roomId)) {
@@ -310,7 +310,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
             roomId = parseInt(currentRoomData.id);
             const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomId}`);
 
-            if (parseInt(currentRoomData.volume) > playersCount && !currentRoomData.password) {
+            if (parseInt(currentRoomData.volume) > playersCount && !currentRoomData.password && currentRoomData.state === ROOMS_STATE_LOBBY) {
                 roomData = currentRoomData;
                 roomKey = currentRoomKey;
                 break;

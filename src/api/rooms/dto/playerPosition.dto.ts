@@ -3,6 +3,8 @@ export class PlayerPositionDto {
 
   keys: string[];
 
+  direction: number;
+
   x: number;
 
   y: number;

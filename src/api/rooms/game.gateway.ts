@@ -4,7 +4,6 @@ import {
     BROADCAST_PLAYER_MOVE,
     PLAYERS_MOVE,
     PLAYER_POSITION_FIELD_LIST,
-    PLAYER_POSITION_TEMPLATE,
     PROFILE_POSITION_PREFIX,
     PROFILE_ROOM_PREFIX,
     ROOM_PREFIX,
@@ -22,14 +21,14 @@ import { BaseSocketGateway } from "./baseSocket.gateway";
 
 const MAX_LAG = 500;
 const WALK_DX = 400;
-const FREEFALL_ACCELERATION = 900;
-const MAX_FALL_SPEED = 1350;
+// const FREEFALL_ACCELERATION = 900;
+// const MAX_FALL_SPEED = 1350;
 
 const KEYS_SUPPORTED = {
-    FORWARD: 'w',
-    BACKWARD: 's',
-    LEFT: 'a',
-    RIGHT: 'd'
+    FORWARD: 'KeyW',
+    BACKWARD: 'KeyS',
+    LEFT: 'KeyA',
+    RIGHT: 'KeyD'
 }
 @WebSocketGateway({
     cors: {

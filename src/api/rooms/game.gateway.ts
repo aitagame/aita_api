@@ -68,6 +68,7 @@ export class GameEventsGateway extends BaseSocketGateway {
         playerPosition.id = parseInt(playerPosition.id.toString());
         playerPosition.x = parseFloat((playerPosition.x).toString());
         playerPosition.y = parseFloat((playerPosition.y).toString());
+        playerPosition.direction = parseInt(playerPosition.direction.toString());
 
         time = this.verifyTime(time);
 
@@ -84,9 +85,11 @@ export class GameEventsGateway extends BaseSocketGateway {
             switch (key) {
                 case KEYS_SUPPORTED.RIGHT:
                     dx += WALK_DX;
+                    playerPosition.direction = 1;
                     break;
                 case KEYS_SUPPORTED.LEFT:
                     dx -= WALK_DX;
+                    playerPosition.direction = -1;
                     break;
             }
         }

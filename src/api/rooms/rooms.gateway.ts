@@ -361,6 +361,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
         playerPosition.id = parseInt(playerPosition.id.toString());
         playerPosition.x = parseFloat((playerPosition.x).toString());
         playerPosition.y = parseFloat((playerPosition.y).toString());
+        playerPosition.direction = parseInt(playerPosition.direction.toString());
         playerPosition.keys = (playerPositionRawData['keys'] as string).split(',')
 
         return {
@@ -383,6 +384,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
         };
         //TODO: Implement via map
         playerPosition.x = Math.random() * 1140 + 80;
+        playerPosition.direction = Math.random() >= 0.5 ? 1 : -1;
         playerPosition.y = 0;
 
         await this.redisService.hmSet(roomProfileKey, playerPosition);

@@ -63,6 +63,7 @@ export const MAX_PASSWORD_LENGTH = 20;
 export const PLAYER_POSITION_TEMPLATE = {
     id: null,
     keys: [],
+    direction: 1,
     //TODO: Replace with random based on platform locations
     x: 800,
     y: 400,

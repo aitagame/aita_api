@@ -28,7 +28,8 @@ const KEYS_SUPPORTED = {
     FORWARD: 'KeyW',
     BACKWARD: 'KeyS',
     LEFT: 'KeyA',
-    RIGHT: 'KeyD'
+    RIGHT: 'KeyD',
+    RESET: 'KeyR'
 }
 @WebSocketGateway({
     cors: {
@@ -78,9 +79,17 @@ export class GameEventsGateway extends BaseSocketGateway {
         const dt = (time - playerPosition.time) / 1000;
 
         for (let key of keys) {
+            //TODO: Enable validation
             // if (key && !Object.values(KEYS_SUPPORTED).includes(key)) {
             //     throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Key "${key}" not supported` });
             // }
+
+            if (key === KEYS_SUPPORTED.RESET) {
+                playerPosition.x = Math.random() * 1140 + 80;
+                playerPosition.direction = Math.random() >= 0.5 ? 1 : -1;
+                playerPosition.y = 0;
+                break;
+            }
 
             switch (key) {
                 case KEYS_SUPPORTED.RIGHT:

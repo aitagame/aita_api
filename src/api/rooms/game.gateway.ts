@@ -103,9 +103,11 @@ export class GameEventsGateway extends BaseSocketGateway {
             }
         }
 
-        playerPosition.x += dx * dt;
-        if (playerPosition.x < 0) {
-            playerPosition.x = 0;
+        if (!keys.includes(KEYS_SUPPORTED.RESET)) {
+            playerPosition.x += dx * dt;
+            if (playerPosition.x < 0) {
+                playerPosition.x = 0;
+            }
         }
 
         playerPosition.time = Date.now();

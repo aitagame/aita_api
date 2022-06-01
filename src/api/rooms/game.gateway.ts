@@ -19,18 +19,18 @@ import { Repository } from "typeorm";
 import { getAuthorizedUser } from "../users/guards/utils";
 import { BaseSocketGateway } from "./baseSocket.gateway";
 
-const MAX_LAG = 500;
-const WALK_DX = 400;
+// const MAX_LAG = 500;
+// const WALK_DX = 400;
+
 // const FREEFALL_ACCELERATION = 900;
 // const MAX_FALL_SPEED = 1350;
 
-const KEYS_SUPPORTED = {
-    FORWARD: 'KeyW',
-    BACKWARD: 'KeyS',
-    LEFT: 'KeyA',
-    RIGHT: 'KeyD',
-    RESET: 'KeyR'
-}
+// const KEYS_SUPPORTED = {
+//     FORWARD: 'KeyW',
+//     BACKWARD: 'KeyS',
+//     LEFT: 'KeyA',
+//     RIGHT: 'KeyD'
+// }
 @WebSocketGateway({
     cors: {
         origin: "*"
@@ -51,7 +51,7 @@ export class GameEventsGateway extends BaseSocketGateway {
 
     @SubscribeMessage(PLAYERS_MOVE)
     async walk(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<PlayerPositionDto>> {
-        let { keys = [], time = null } = data;
+        let { keys = [] } = data;
 
         const user = getAuthorizedUser(socket);
         const profile = await this.getProfileByUser(user);
@@ -71,44 +71,34 @@ export class GameEventsGateway extends BaseSocketGateway {
         playerPosition.y = parseFloat((playerPosition.y).toString());
         playerPosition.direction = parseInt(playerPosition.direction.toString());
 
-        time = this.verifyTime(time);
+        // time = this.verifyTime(time);
 
         keys = Array.from(new Set(keys));
 
-        let dx = 0;
-        const dt = (time - playerPosition.time) / 1000;
+        // let dx = 0;
+        // const dt = (time - playerPosition.time) / 1000;
 
-        for (let key of keys) {
-            //TODO: Enable validation
-            // if (key && !Object.values(KEYS_SUPPORTED).includes(key)) {
-            //     throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Key "${key}" not supported` });
-            // }
+        // for (let key of keys) {
+        //     // if (key && !Object.values(KEYS_SUPPORTED).includes(key)) {
+        //     //     throw new WsException({ status: HttpStatus.BAD_REQUEST, message: `Key "${key}" not supported` });
+        //     // }
 
-            if (key === KEYS_SUPPORTED.RESET) {
-                playerPosition.x = Math.random() * 1140 + 80;
-                playerPosition.direction = Math.random() >= 0.5 ? 1 : -1;
-                playerPosition.y = 0;
-                break;
-            }
+        //     switch (key) {
+        //         case KEYS_SUPPORTED.RIGHT:
+        //             dx += WALK_DX;
+        //             playerPosition.direction = 1;
+        //             break;
+        //         case KEYS_SUPPORTED.LEFT:
+        //             dx -= WALK_DX;
+        //             playerPosition.direction = -1;
+        //             break;
+        //     }
+        // }
 
-            switch (key) {
-                case KEYS_SUPPORTED.RIGHT:
-                    dx += WALK_DX;
-                    playerPosition.direction = 1;
-                    break;
-                case KEYS_SUPPORTED.LEFT:
-                    dx -= WALK_DX;
-                    playerPosition.direction = -1;
-                    break;
-            }
-        }
-
-        if (!keys.includes(KEYS_SUPPORTED.RESET)) {
-            playerPosition.x += dx * dt;
-            if (playerPosition.x < 0) {
-                playerPosition.x = 0;
-            }
-        }
+        // playerPosition.x += dx * dt;
+        // if (playerPosition.x < 0) {
+        //     playerPosition.x = 0;
+        // }
 
         playerPosition.time = Date.now();
         await this.redisService.hmSet(roomProfileKey, { ...playerPosition, keys: keys.join() });
@@ -117,13 +107,24 @@ export class GameEventsGateway extends BaseSocketGateway {
             socket.join(`/${roomKey}`);
         }
 
-        this.server.in(`/${roomKey}`).emit(BROADCAST_PLAYER_MOVE, { ...playerPosition, keys: keys.toString().split(',') });
+        //TODO: Naive implementation. Update.
+        let broadcastData = {
+            id: playerPosition.id,
+            serverTime: Date.now(),
+            clientTime: data.time,
+            keys,
+            x: data.x,
+            y: data.y,
+            direction: data.direction
+        };
 
-        return { event: PLAYERS_MOVE, data: { ...playerPosition, keys: keys.toString().split(',') } };
+        this.server.in(`/${roomKey}`).emit(BROADCAST_PLAYER_MOVE, broadcastData);
+
+        return { event: PLAYERS_MOVE, data: broadcastData };
     }
 
-    private verifyTime(time: number): number {
-        const now = Date.now();
-        return time ? Math.min(Math.max(now - MAX_LAG, time), now) : now;
-    }
+    // private verifyTime(time: number): number {
+    //     const now = Date.now();
+    //     return time ? Math.min(Math.max(now - MAX_LAG, time), now) : now;
+    // }
 }

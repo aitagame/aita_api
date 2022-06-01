@@ -9,5 +9,9 @@ export class PlayerPositionDto {
 
   y: number;
 
-  time: number;
+  time?: number;
+
+  clientTime?: number;
+  
+  serverTime?: number;
 } 

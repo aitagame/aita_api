@@ -110,7 +110,8 @@ export class GameEventsGateway extends BaseSocketGateway {
         //TODO: Naive implementation. Update.
         let broadcastData = {
             id: playerPosition.id,
-            serverTime: Date.now(),
+            serverTime: playerPosition.time,
+            time: playerPosition.time,
             clientTime: data.time,
             keys,
             x: data.x,

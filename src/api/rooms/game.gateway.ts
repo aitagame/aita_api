@@ -2,7 +2,9 @@ import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket, WsExc
 import { Server, Socket } from "socket.io";
 import {
     BROADCAST_PLAYER_MOVE,
+    BROADCAST_PLAYER_UPDATE,
     PLAYERS_MOVE,
+    PLAYERS_UPDATE,
     PLAYER_POSITION_FIELD_LIST,
     PROFILE_POSITION_PREFIX,
     PROFILE_ROOM_PREFIX,
@@ -19,7 +21,7 @@ import { Repository } from "typeorm";
 import { getAuthorizedUser } from "../users/guards/utils";
 import { BaseSocketGateway } from "./baseSocket.gateway";
 
-// const MAX_LAG = 500;
+const MAX_LAG = 500;
 // const WALK_DX = 400;
 
 // const FREEFALL_ACCELERATION = 900;
@@ -50,8 +52,10 @@ export class GameEventsGateway extends BaseSocketGateway {
     }
 
     @SubscribeMessage(PLAYERS_MOVE)
-    async walk(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<PlayerPositionDto>> {
+    async walk(@MessageBody() data: any, @ConnectedSocket() socket: Socket, eventType = PLAYERS_MOVE, broadcastType = BROADCAST_PLAYER_MOVE): Promise<WsResponse<PlayerPositionDto>> {
         let { keys = [] } = data;
+
+        const now = Date.now();
 
         const user = getAuthorizedUser(socket);
         const profile = await this.getProfileByUser(user);
@@ -100,7 +104,12 @@ export class GameEventsGateway extends BaseSocketGateway {
         //     playerPosition.x = 0;
         // }
 
-        playerPosition.time = Date.now();
+        if (data.time < now - MAX_LAG) {
+            playerPosition.time = now;
+            playerPosition.x = parseFloat(data.x);
+            playerPosition.y = parseFloat(data.y);
+            playerPosition.direction = parseInt(data.direction);
+        }
         await this.redisService.hmSet(roomProfileKey, { ...playerPosition, keys: keys.join() });
 
         if (!socket.rooms.has(roomKey)) {
@@ -114,18 +123,23 @@ export class GameEventsGateway extends BaseSocketGateway {
             time: playerPosition.time,
             clientTime: data.time,
             keys,
-            x: data.x,
-            y: data.y,
-            direction: data.direction
+            x: playerPosition.x,
+            y: playerPosition.y,
+            direction: playerPosition.direction
         };
 
-        this.server.in(`/${roomKey}`).emit(BROADCAST_PLAYER_MOVE, broadcastData);
+        this.server.in(`/${roomKey}`).emit(broadcastType, broadcastData);
 
-        return { event: PLAYERS_MOVE, data: broadcastData };
+        return { event: eventType, data: broadcastData };
     }
 
     // private verifyTime(time: number): number {
     //     const now = Date.now();
     //     return time ? Math.min(Math.max(now - MAX_LAG, time), now) : now;
     // }
+
+    @SubscribeMessage(PLAYERS_UPDATE)
+    async updatePlayer(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<PlayerPositionDto>> {
+        return await this.walk(data, socket, PLAYERS_UPDATE, BROADCAST_PLAYER_UPDATE);
+    }
 }

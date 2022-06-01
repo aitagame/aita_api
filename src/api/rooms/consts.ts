@@ -16,6 +16,10 @@ export const BROADCAST_ROOMS_DELETED = "broadcast.rooms.deleted";
 export const PLAYERS_MOVE = "players.move";
 export const PLAYERS_SHOT = "players.shot";
 
+export const PLAYERS_UPDATE = "players.update";
+
+export const BROADCAST_PLAYER_UPDATE = "broadcast.players.update";
+
 export const BROADCAST_PLAYER_MOVE = "broadcast.players.move";
 //#endregion
 

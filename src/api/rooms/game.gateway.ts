@@ -107,9 +107,15 @@ export class GameEventsGateway extends BaseSocketGateway {
 
         if (!playerPosition.time || !data.time || data.time > playerPosition.time) {
             playerPosition.time = now;
-            playerPosition.x = parseFloat(data.x);
-            playerPosition.y = parseFloat(data.y);
-            playerPosition.direction = parseInt(data.direction);
+            if (data.x) {
+                playerPosition.x = parseFloat(data.x);
+            }
+            if (data.y) {
+                playerPosition.y = parseFloat(data.y);
+            }
+            if (data.direction) {
+                playerPosition.direction = parseInt(data.direction);
+            }
         }
         await this.redisService.hmSet(roomProfileKey, { ...playerPosition, keys: playerPosition.keys.join() });
 

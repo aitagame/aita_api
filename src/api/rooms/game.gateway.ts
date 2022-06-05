@@ -53,8 +53,6 @@ export class GameEventsGateway extends BaseSocketGateway {
 
     @SubscribeMessage(PLAYERS_MOVE)
     async walk(@MessageBody() data: any, @ConnectedSocket() socket: Socket, eventType = PLAYERS_MOVE, broadcastType = BROADCAST_PLAYER_MOVE): Promise<WsResponse<PlayerPositionDto>> {
-        let { keys = [] } = data;
-
         const now = Date.now();
 
         const user = getAuthorizedUser(socket);
@@ -74,10 +72,10 @@ export class GameEventsGateway extends BaseSocketGateway {
         playerPosition.x = parseFloat((playerPosition.x).toString());
         playerPosition.y = parseFloat((playerPosition.y).toString());
         playerPosition.direction = parseInt(playerPosition.direction.toString());
+        playerPosition.time = parseInt(playerPosition.time.toString());
+        playerPosition.keys = playerPosition.keys ? playerPosition.keys.toString().split(',') : [];
 
         // time = this.verifyTime(time);
-
-        keys = Array.from(new Set(keys));
 
         // let dx = 0;
         // const dt = (time - playerPosition.time) / 1000;
@@ -103,14 +101,17 @@ export class GameEventsGateway extends BaseSocketGateway {
         // if (playerPosition.x < 0) {
         //     playerPosition.x = 0;
         // }
+        if (data.keys) {
+            playerPosition.keys = Array.from(new Set(data.keys));
+        }
 
-        if (data.time < now - MAX_LAG) {
+        if (!playerPosition.time || !data.time || data.time > playerPosition.time) {
             playerPosition.time = now;
             playerPosition.x = parseFloat(data.x);
             playerPosition.y = parseFloat(data.y);
             playerPosition.direction = parseInt(data.direction);
         }
-        await this.redisService.hmSet(roomProfileKey, { ...playerPosition, keys: keys.join() });
+        await this.redisService.hmSet(roomProfileKey, { ...playerPosition, keys: playerPosition.keys.join() });
 
         if (!socket.rooms.has(roomKey)) {
             socket.join(`/${roomKey}`);
@@ -122,7 +123,7 @@ export class GameEventsGateway extends BaseSocketGateway {
             serverTime: playerPosition.time,
             time: playerPosition.time,
             clientTime: data.time,
-            keys,
+            keys: playerPosition.keys,
             x: playerPosition.x,
             y: playerPosition.y,
             direction: playerPosition.direction

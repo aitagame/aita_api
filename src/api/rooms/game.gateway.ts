@@ -52,7 +52,7 @@ export class GameEventsGateway extends BaseSocketGateway {
     }
 
     @SubscribeMessage(PLAYERS_MOVE)
-    async walk(@MessageBody() data: any, @ConnectedSocket() socket: Socket, eventType = PLAYERS_MOVE, broadcastType = BROADCAST_PLAYER_MOVE): Promise<WsResponse<PlayerPositionDto>> {
+    async walk(@MessageBody() data: any, @ConnectedSocket() socket: Socket, timePrefix = 'walk', eventType = PLAYERS_MOVE, broadcastType = BROADCAST_PLAYER_MOVE): Promise<WsResponse<PlayerPositionDto>> {
         const now = Date.now();
 
         const user = getAuthorizedUser(socket);
@@ -72,7 +72,7 @@ export class GameEventsGateway extends BaseSocketGateway {
         playerPosition.x = parseFloat((playerPosition.x).toString());
         playerPosition.y = parseFloat((playerPosition.y).toString());
         playerPosition.direction = parseInt(playerPosition.direction.toString());
-        playerPosition.time = parseInt(playerPosition.time.toString());
+        playerPosition[`${timePrefix}time`] = parseInt(playerPosition[`${timePrefix}time`]?.toString());
         playerPosition.keys = playerPosition.keys ? playerPosition.keys.toString().split(',') : [];
 
         // time = this.verifyTime(time);
@@ -105,8 +105,8 @@ export class GameEventsGateway extends BaseSocketGateway {
             playerPosition.keys = Array.from(new Set(data.keys));
         }
 
-        if (!playerPosition.time || !data.time || data.time > playerPosition.time) {
-            playerPosition.time = now;
+        if (!playerPosition[`${timePrefix}time`] || !data.time || data.time > playerPosition[`${timePrefix}time`]) {
+            playerPosition[`${timePrefix}time`] = now;
             if (data.x) {
                 playerPosition.x = parseFloat(data.x);
             }
@@ -126,8 +126,8 @@ export class GameEventsGateway extends BaseSocketGateway {
         //TODO: Naive implementation. Update.
         let broadcastData = {
             id: playerPosition.id,
-            serverTime: playerPosition.time,
-            time: playerPosition.time,
+            serverTime: playerPosition[`${timePrefix}time`],
+            time: playerPosition[`${timePrefix}time`],
             clientTime: data.time,
             keys: playerPosition.keys,
             x: playerPosition.x,
@@ -147,6 +147,6 @@ export class GameEventsGateway extends BaseSocketGateway {
 
     @SubscribeMessage(PLAYERS_UPDATE)
     async updatePlayer(@MessageBody() data: any, @ConnectedSocket() socket: Socket): Promise<WsResponse<PlayerPositionDto>> {
-        return await this.walk(data, socket, PLAYERS_UPDATE, BROADCAST_PLAYER_UPDATE);
+        return await this.walk(data, socket, 'move', PLAYERS_UPDATE, BROADCAST_PLAYER_UPDATE);
     }
 }

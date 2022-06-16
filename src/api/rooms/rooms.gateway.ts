@@ -255,7 +255,7 @@ export class RoomsEventsGateway extends BaseSocketGateway {
             const roomKey = `${ROOM_PREFIX}${roomLastId}`;
             let passHash: string = null;
 
-            console.log(`creating ${roomKey}`, { mapId, name, volume: volume || process.env['DEFAULT_ROOM_VOLUME'], state: ROOMS_STATE_LOBBY, mode, profileId: profile.id });
+            console.log(`creating ${roomKey}`, { mapId, name, volume: volume || process.env['DEFAULT_ROOM_VOLUME'], state: ROOMS_STATE_LOBBY, mode, creatorProfileId: profile.id });
 
             const roomData = {
                 'id': roomLastId.toString(),
@@ -269,10 +269,6 @@ export class RoomsEventsGateway extends BaseSocketGateway {
             };
             await this.redisService.hmSet(roomKey, roomData);
 
-            await this.redisService.rPush(`${ROOM_PROFILE_PREFIX}${roomLastId}`, profile.id.toString());
-            await this.redisService.set(`${PROFILE_ROOM_PREFIX}${profile.id}`, roomLastId.toString());
-            this.initProfilePlayerPosition(roomKey, profile);
-
             this.server.emit(BROADCAST_ROOMS_CREATED, roomId, {
                 id: roomId,
                 name: name,
@@ -280,8 +276,6 @@ export class RoomsEventsGateway extends BaseSocketGateway {
                 mode: mode,
                 isLocked: !!passHash
             });
-            this.server.emit(BROADCAST_ROOMS_CONNECTED, roomId, this.buildProfileDto(roomKey, profile, user));
-            socket.join(`/${roomKey}`);
 
             return { event: ROOMS_CREATE, data: await this.roomDataToDto(roomLastId, roomData, 1, getAuthorizedUser(socket)) };
 
@@ -304,7 +298,6 @@ export class RoomsEventsGateway extends BaseSocketGateway {
 
         const roomsKeys = await this.redisService.keys(`${ROOM_PREFIX}*`);
         let roomData = null;
-        let roomKey = null;
         for (let currentRoomKey of roomsKeys) {
             const currentRoomData = (await this.redisService.hmGet(currentRoomKey, roomFieldlist)) as Record<string, string>;
             roomId = parseInt(currentRoomData.id);
@@ -312,18 +305,15 @@ export class RoomsEventsGateway extends BaseSocketGateway {
 
             if (parseInt(currentRoomData.volume) > playersCount && !currentRoomData.password && currentRoomData.state === ROOMS_STATE_LOBBY) {
                 roomData = currentRoomData;
-                roomKey = currentRoomKey;
                 break;
             }
         }
-        if (roomData) {
-            await this.join({ id: roomData.id }, socket);
-        }
-        else {
+        if (!roomData) {
             const { data } = await this.create({ name: guid() }, socket, false);
             roomData = data;
             roomId = data.id;
         }
+        await this.join({ id: roomData.id }, socket);
 
         const playersCount = await this.redisService.lLen(`${ROOM_PROFILE_PREFIX}${roomId}`);
         return { event: ROOMS_JOIN_OR_CREATE, data: await this.roomDataToDto(roomData.id, roomData, playersCount, user) };
